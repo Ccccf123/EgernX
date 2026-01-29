@@ -6,6 +6,7 @@ domain_set:
   - server3.cn2gias.uk
   - media.asubaka.de
   - speedtest-babybus.apple-cdn.net
+  - m.mobaiemby.site
   
 domain_suffix_set:
   - 114514.quest
@@ -125,7 +126,6 @@ domain_suffix_set:
   - mius.uk
   - mjjemby.org
   - movie.xeton.dev
-  - mobaiemby.site
   - mobai.sbs
   - mulgore.net
   - nanflix.net
