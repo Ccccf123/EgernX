@@ -6,9 +6,9 @@ domain_set:
   - server3.cn2gias.uk
   - media.asubaka.de
   - speedtest-babybus.apple-cdn.net
-  - m.mobaiemby.site
   
 domain_suffix_set:
+  - m.mobaiemby.site
   - 114514.quest
   - 123456.al
   - 16bit.cfd
