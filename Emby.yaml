@@ -1,4 +1,3 @@
-
 no_resolve: true
 domain_set:
   - ask.ash.yt
@@ -8,7 +7,7 @@ domain_set:
   - speedtest-babybus.apple-cdn.net
   — emby.dnscf.dpdns.org
 domain_suffix_set:
-  - m.mobaiemby.site
+  - mobaiemby.site
   - 114514.quest
   - 123456.al
   - 16bit.cfd
