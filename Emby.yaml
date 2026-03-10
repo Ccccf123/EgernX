@@ -8,7 +8,7 @@ domain_set:
   - emby.dnscf.dpdns.org
  
 domain_suffix_set:
-  - 114514.quest
+  - m.mobaiemby.site
   - 123456.al
   - 16bit.cfd
   - 20120714.xyz
