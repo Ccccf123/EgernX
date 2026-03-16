@@ -1,204 +1,103 @@
-/**
- * 🌤️ 和风天气 - Egern 小组件（精简标签版）
+ * 📌 代码名称: 🌐 网络信息小组件
+ * ✨ 特色功能: 实时显示 Wi-Fi/数据网络状态、内网与网关 IPv4 地址、双端物理位置定位，全面支持 iOS 系统深浅模式（Light/Dark）自适应切换。
+ * 🔗 引用链接: https://raw.githubusercontent.com/jnlaoshu/MySelf/master/Egern/Widget/NetworkInfo.js
+ * ⏱️ 更新时间: 2026-03-15
+ * ==========================================
  */
 
-// ===== 配置 =====
-const apiKey = '你的KEY';
-const apiHost = 'https://devapi.qweather.com';
+export default async function(ctx) {
+  const BG_COLORS = [{ light: '#FFFFFF', dark: '#1C1C1E' }, { light: '#F4F5F9', dark: '#000000' }];
+  const TEXT_MAIN = { light: '#000000', dark: '#FFFFFF' };
+  const TEXT_SUB = { light: '#3C3C43', dark: '#EBEBF5' }; 
 
-// ===== 主函数 =====
-async function main(ctx) {
+  const http = {
+    get: async (url) => {
+      try {
+        const resp = await ctx.http.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 10000 });
+        const text = await resp.text();
+        return JSON.parse(text).data || JSON.parse(text); 
+      } catch (e) { return {}; }
+    }
+  };
 
-  const widgetFamily = ctx.widgetFamily || 'systemMedium';
+  const fmtISP = (isp) => {
+    if (!isp) return "未知运营商";
+    const s = isp.toLowerCase();
+    const raw = isp.replace(/\s*\(中国\)\s*/, "").replace(/\s+/g, " ").trim();
+    if (/(^|[\s-])(cmcc|cmnet|cmi|mobile)\b|移动/.test(s)) return "中国移动";
+    if (/(^|[\s-])(chinanet|telecom|ctcc|ct)\b|电信/.test(s)) return "中国电信";
+    if (/(^|[\s-])(unicom|cncgroup|netcom|link)\b|联通/.test(s)) return "中国联通";
+    if (/(^|[\s-])(cbn|broadcast)\b|广电/.test(s)) return "中国广电";
+    return raw;
+  };
 
-  const lon = ctx.query.lon || '116.40';
-  const lat = ctx.query.lat || '39.90';
-  const city = ctx.query.city || '北京';
-
-  const now = await fetchWeatherNow(ctx, apiKey, lon, lat, apiHost);
-  const air = await fetchAir(ctx, apiKey, lon, lat, apiHost);
-  const daily = await fetchWeatherDaily(ctx, apiKey, lon, lat, apiHost);
-
-  if (widgetFamily && isAccessoryFamily(widgetFamily)) {
-    return renderAccessory(now);
-  }
-
-  return renderMedium(now, air, city, daily);
-}
-
-// ===== 当前天气 =====
-async function fetchWeatherNow(ctx, key, lon, lat, host) {
-
-  const url = `${host}/v7/weather/now?location=${lon},${lat}&key=${key}&lang=zh`;
-  const resp = await ctx.http.get(url);
-  const data = await resp.json();
-
-  return data.now || {};
-}
-
-// ===== 空气质量 =====
-async function fetchAir(ctx, key, lon, lat, host) {
+  const getRadioType = (radio) => {
+    const map = { "GPRS": "2.5G", "EDGE": "2.75G", "WCDMA": "3G", "LTE": "4G", "NR": "5G", "NRNSA": "5G" };
+    return map[radio?.toUpperCase().replace(/\s+/g, "")] || radio || "";
+  };
 
   try {
-    const url = `${host}/v7/air/now?location=${lon},${lat}&key=${key}`;
-    const resp = await ctx.http.get(url);
-    const data = await resp.json();
+    const d = ctx.device || {};
+    const [internalIP, gatewayIP, wifiSsid, cellularRadio] = [
+      d.ipv4?.address, 
+      d.ipv4?.gateway, 
+      d.wifi?.ssid, 
+      d.cellular?.radio
+    ];
 
-    return data.now || {};
-  } catch {
-    return {};
-  }
-}
+    const [localInfo, nodeInfo] = await Promise.all([
+      http.get('https://myip.ipip.net/json'), 
+      http.get('http://ip-api.com/json/?lang=zh-CN')
+    ]);
 
-// ===== 新增：最高/最低温 =====
-async function fetchWeatherDaily(ctx, key, lon, lat, host) {
+    let rawISP = (Array.isArray(localInfo.location) ? localInfo.location[localInfo.location.length - 1] : "") || nodeInfo?.isp || nodeInfo?.org; 
+    let title = `${fmtISP(rawISP)} | ${wifiSsid || getRadioType(cellularRadio) || "未连接"}`;
 
-  const url = `${host}/v7/weather/3d?location=${lon},${lat}&key=${key}&lang=zh`;
-  const resp = await ctx.http.get(url);
-  const data = await resp.json();
+    const rows = [];
+    
+    if (internalIP) rows.push({ icon: 'house.fill', color: { light: '#28CD41', dark: '#32D74B' }, text: `内网地址：${internalIP}` });
+    if (gatewayIP) rows.push({ icon: 'wifi.router.fill', color: { light: '#FF3B30', dark: '#FF453A' }, text: `网关地址：${gatewayIP}` });
+    
+    if (localInfo.ip) {
+      rows.push({ icon: 'location.circle.fill', color: { light: '#007AFF', dark: '#0A84FF' }, text: `本地地址：${localInfo.ip}` });
+      const locStr = Array.isArray(localInfo.location) ? localInfo.location.slice(0, 3).join('').trim() : '';
+      if (locStr) rows.push({ icon: 'map.fill', color: { light: '#FFCC00', dark: '#FFD60A' }, text: `本地位置：${locStr}` });
+    }
 
-  if (data.code === '200' && data.daily?.[0]) {
+    const nodeIP = nodeInfo.query || nodeInfo.ip;
+    if (nodeIP) {
+      rows.push({ icon: 'network', color: { light: '#AF52DE', dark: '#BF5AF2' }, text: `节点地址：${nodeIP}` });
+      const nodeLoc = `${nodeInfo.country || ''} ${nodeInfo.city || ''}`.trim();
+      if (nodeLoc) rows.push({ icon: 'paperplane.circle.fill', color: { light: '#FF9500', dark: '#FF9F0A' }, text: `节点位置：${nodeLoc}` });
+    }
+
+    const isWifi = !!wifiSsid;
     return {
-      tempMax: data.daily[0].tempMax,
-      tempMin: data.daily[0].tempMin
+      type: 'widget', 
+      padding: 12, 
+      backgroundGradient: { type: 'linear', colors: BG_COLORS, startPoint: { x: 0, y: 0 }, endPoint: { x: 1, y: 1 } },
+      children: [
+        { type: 'spacer', length: 2 },
+        { type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
+            { type: 'image', src: isWifi ? 'sf-symbol:wifi' : 'sf-symbol:antenna.radiowaves.left.and.right', color: TEXT_MAIN, width: 18, height: 18 },
+            { type: 'text', text: title, font: { size: 'headline', weight: 'bold' }, textColor: TEXT_MAIN, maxLines: 1, minScale: 0.7 }
+        ]},
+        { type: 'spacer', length: 6 }, 
+        { type: 'stack', direction: 'column', alignItems: 'start', gap: 4, children: rows.map(r => ({
+            type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
+              { type: 'image', src: `sf-symbol:${r.icon}`, color: r.color, width: 16, height: 16 },
+              { type: 'text', text: r.text, font: { size: 'subheadline', weight: 'medium' }, textColor: TEXT_SUB, maxLines: 1, minScale: 0.5 }
+            ]
+        }))},
+        { type: 'spacer' }
+      ]
+    };
+  } catch (err) {
+    return { 
+      type: 'widget', 
+      padding: 12, 
+      backgroundGradient: { type: 'linear', colors: BG_COLORS, startPoint: { x:0, y:0 }, endPoint: { x:1, y:1 } }, 
+      children: [{ type: 'text', text: '加载失败，请检查网络', font: { size: 'subheadline' }, textColor: TEXT_SUB }] 
     };
   }
-
-  return { tempMax: '--', tempMin: '--' };
 }
-
-// ===== 中号组件 =====
-function renderMedium(now, air, city, daily) {
-
-  const icon = 'cloud.sun.fill';
-  const iconColor = { light: '#333', dark: '#FFF' };
-
-  return {
-    type: 'container',
-    padding: 16,
-    children: [
-
-      // 顶部城市
-      {
-        type: 'text',
-        text: (city || '').slice(0, 4),
-        font: { size: 'caption1' },
-        textColor: { light: '#666', dark: '#AAA' }
-      },
-
-      { type: 'spacer', size: 8 },
-
-      // ===== 核心布局（已调整）=====
-      {
-        type: 'stack',
-        direction: 'row',
-        alignItems: 'center',
-        children: [
-
-          // 左：天气
-          {
-            type: 'stack',
-            direction: 'column',
-            justifyContent: 'center',
-            children: [
-              { type: 'text', text: now.text, font: { size: 'title3' } }
-            ]
-          },
-
-          // 中：温度
-          {
-            type: 'stack',
-            direction: 'column',
-            flex: 1,
-            alignItems: 'center',
-            gap: 2,
-            children: [
-
-              {
-                type: 'text',
-                text: `${now.temp}°`,
-                font: { size: 48, weight: 'bold' }
-              },
-
-              {
-                type: 'text',
-                text: `${daily.tempMax}° / ${daily.tempMin}°`,
-                font: { size: 'caption1' },
-                textColor: { light: '#666', dark: '#AAA' }
-              }
-            ]
-          },
-
-          // 右：图标
-          {
-            type: 'image',
-            src: `sf-symbol:${icon}`,
-            width: 48,
-            height: 48,
-            color: iconColor
-          }
-        ]
-      },
-
-      { type: 'spacer' },
-
-      // ===== 底部信息（已去标签）=====
-      {
-        type: 'stack',
-        direction: 'row',
-        justifyContent: 'space-between',
-        children: [
-
-          createInfoItem('drop.fill', '', `${now.humidity}%`, '#007AFF'),
-
-          createInfoItem('wind', '', `${now.windDir} ${now.windScale}级`, '#5856D6'),
-
-          createInfoItem('gauge.medium', '', `${now.windSpeed}km/h`, '#FF9500')
-        ]
-      }
-    ]
-  };
-}
-
-// ===== 小组件信息项 =====
-function createInfoItem(icon, label, value, color) {
-
-  return {
-    type: 'stack',
-    direction: 'row',
-    alignItems: 'center',
-    gap: 4,
-    children: [
-
-      {
-        type: 'image',
-        src: `sf-symbol:${icon}`,
-        width: 14,
-        height: 14,
-        color
-      },
-
-      {
-        type: 'text',
-        text: value,
-        font: { size: 'caption2' }
-      }
-    ]
-  };
-}
-
-// ===== 锁屏组件 =====
-function renderAccessory(now) {
-  return {
-    type: 'text',
-    text: `${now.temp}°`
-  };
-}
-
-// ===== 判断类型 =====
-function isAccessoryFamily(family) {
-  return family && family.startsWith('accessory');
-}
-
-// ===== 运行 =====
-module.exports = { main };
