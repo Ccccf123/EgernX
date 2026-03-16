@@ -1,5 +1,5 @@
 /**
- * 📌 网络·代理·IP纯净度 - 统一配色版
+ * 📌 网络·代理·IP纯净度 - 并行优化版
  */
 export default async function(ctx) {
   // ✨ 统一极客渐变背景配置
@@ -39,40 +39,44 @@ export default async function(ctx) {
 
   const localIp = d.ipv4?.address || "获取失败";
 
+  // 🚀 并行请求三个外部接口
   let pubIp = "获取失败", pubLoc = "未知位置", pubIsp = "未知运营商";
+  let nIp = "获取失败", nLoc = "未知位置", asnInfo = "未知";
+  let ipData = {}, costTime = 0;
+
   try {
-    const res = await ctx.http.get('https://myip.ipip.net/json', { 
-      headers: { 'User-Agent': 'Mozilla/5.0' }, 
-      timeout: 4000 
-    });
-    const body = JSON.parse(await res.text());
+    const start = Date.now();
+    const [resIpip, resIpinfo, resPure] = await Promise.all([
+      ctx.http.get('https://myip.ipip.net/json', { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 4000 }),
+      ctx.http.get('https://ipinfo.io/json', { timeout: 5000 }),
+      ctx.http.get('https://my.ippure.com/v1/info', { timeout: 4000 })
+    ]);
+    costTime = Date.now() - start;
+
+    // ipip.net
+    const body = JSON.parse(await resIpip.text());
     if (body?.data) {
       pubIp = body.data.ip || "获取失败";
       const locArr = body.data.location || [];
       pubLoc = `🇨🇳 ${locArr[1] || ""} ${locArr[2] || ""}`.trim() || "未知位置";
       pubIsp = fmtISP(locArr[4] || locArr[3]);
     }
-  } catch(e) {}
 
-  let nIp = "获取失败", nLoc = "未知位置", asnInfo = "未知";
-  try {
-    const res = await ctx.http.get('https://ipinfo.io/json', { timeout: 5000 });
-    const data = JSON.parse(await res.text());
+    // ipinfo.io
+    const data = JSON.parse(await resIpinfo.text());
     nIp = data.ip || "获取失败";
     const code = data.country || "";
     const flag = code ? String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt())) : "🌐";
     nLoc = `${flag} ${data.region || ""} ${data.city || ""}`.trim();
-    const asn = data.asn || data.org?.split(' ')[0] || "";
-    const name = data.org?.replace(asn, "").trim() || data.company || "";
-    asnInfo = `${asn} ${name}`.trim() || "未知";
-  } catch(e) {}
+    if (data.org) {
+      const parts = data.org.split(" ");
+      const asn = parts[0]; // 例如 AS4134
+      const name = parts.slice(1).join(" ");
+      asnInfo = `${asn} ${name}`;
+    }
 
-  let ipData = {}, costTime = 0;
-  try {
-    const start = Date.now();
-    const res = await ctx.http.get('https://my.ippure.com/v1/info', { timeout: 4000 });
-    costTime = Date.now() - start;
-    ipData = JSON.parse(await res.text());
+    // ippure.com
+    ipData = JSON.parse(await resPure.text());
   } catch(e) {}
 
   const nativeText = ipData.isResidential ? "🏠 原生住宅" : ipData.isResidential === false ? "🏢 商业机房" : "未知";
