@@ -1,12 +1,16 @@
 /**
- * 📌 网络·代理·IP纯净度 紧凑不溢出版
+ * 📌 网络·代理·IP纯净度 - 统一配色版
  */
 export default async function(ctx) {
+  // ✨ 统一极客渐变背景配置
   const BG_COLORS = [{ light: '#FFFFFF', dark: '#1C1C1E' }, { light: '#F4F5F9', dark: '#000000' }];
-  const BLOCK_BG = { light: '#F2F2F7', dark: '#2C2C2E' };
-  const TEXT_MAIN = { light: '#000000', dark: '#FFFFFF' };
-  const TEXT_SUB = { light: '#666666', dark: '#999999' };
-  const TITLE_COLOR = { light: '#007AFF', dark: '#0A84FF' };
+  
+  // 统一配色方案
+  const C_MAIN = { light: '#000000', dark: '#FFFFFF' };
+  const C_SUB = { light: '#666666', dark: '#999999' };
+  const C_TITLE = { light: '#007AFF', dark: '#0A84FF' };
+  const C_GREEN = { light: '#34C759', dark: '#30D158' };
+
   const fmtISP = (isp) => {
     if (!isp) return "未知";
     const s = isp.toLowerCase();
@@ -17,7 +21,6 @@ export default async function(ctx) {
     return isp; 
   };
 
-  // 网络状态
   const d = ctx.device || {};
   const isWifi = !!d.wifi?.ssid;
   
@@ -36,7 +39,6 @@ export default async function(ctx) {
 
   const localIp = d.ipv4?.address || "获取失败";
 
-  // 直连IP
   let pubIp = "获取失败", pubLoc = "未知位置", pubIsp = "未知运营商";
   try {
     const res = await ctx.http.get('https://myip.ipip.net/json', { 
@@ -52,31 +54,20 @@ export default async function(ctx) {
     }
   } catch(e) {}
 
-  // 落地IP + 从 ipinfo.io 获取精准 ASN
-  let nIp = "获取失败", nLoc = "未知位置";
-  let asnInfo = "未知";
-  
+  let nIp = "获取失败", nLoc = "未知位置", asnInfo = "未知";
   try {
     const res = await ctx.http.get('https://ipinfo.io/json', { timeout: 5000 });
     const data = JSON.parse(await res.text());
-    
     nIp = data.ip || "获取失败";
-    
-    // 国家/地区
     const code = data.country || "";
     const flag = code ? String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt())) : "🌐";
     nLoc = `${flag} ${data.region || ""} ${data.city || ""}`.trim();
-    
-    // 🔥 精准 ASN + 公司名（来自 ipinfo.io）
     const asn = data.asn || data.org?.split(' ')[0] || "";
     const name = data.org?.replace(asn, "").trim() || data.company || "";
     asnInfo = `${asn} ${name}`.trim() || "未知";
-    
   } catch(e) {}
 
-  // IP 风险检测
-  let ipData = {};
-  let costTime = 0;
+  let ipData = {}, costTime = 0;
   try {
     const start = Date.now();
     const res = await ctx.http.get('https://my.ippure.com/v1/info', { timeout: 4000 });
@@ -84,44 +75,22 @@ export default async function(ctx) {
     ipData = JSON.parse(await res.text());
   } catch(e) {}
 
-  const nativeText = ipData.isResidential 
-    ? "🏠 原生住宅" 
-    : ipData.isResidential === false 
-      ? "🏢 商业机房" 
-      : "未知";
-  const nodeIpWithNative = `${nIp}  ${nativeText}`;
+  const nativeText = ipData.isResidential ? "🏠 原生住宅" : ipData.isResidential === false ? "🏢 商业机房" : "未知";
+  const nodeIpWithNative = `${nIp} ${nativeText}`;
 
-  // 风险
   const risk = ipData.fraudScore;
   let riskTxt = "获取失败", riskCol = C_SUB, riskIc = "questionmark.shield.fill";
   if (risk != null) {
-    if (risk >= 80) {
-      riskTxt = `极高风险 (${risk})`;
-      riskCol = { light: '#FF3B30', dark: '#FF3B30' };
-      riskIc = "xmark.shield.fill";
-    } else if (risk >= 70) {
-      riskTxt = `高风险 (${risk})`;
-      riskCol = { light: '#FF9500', dark: '#FF9500' };
-      riskIc = "exclamationmark.shield.fill";
-    } else if (risk >= 40) {
-      riskTxt = `中等风险 (${risk})`;
-      riskCol = { light: '#FFD60A', dark: '#FFD60A' };
-      riskIc = "exclamationmark.shield.fill";
-    } else {
-      riskTxt = `纯净低危 (${risk})`;
-      riskCol = C_GREEN;
-      riskIc = "checkmark.shield.fill";
-    }
+    if (risk >= 80) { riskTxt = `极高风险 (${risk})`; riskCol = { light: '#FF3B30', dark: '#FF3B30' }; riskIc = "xmark.shield.fill"; }
+    else if (risk >= 70) { riskTxt = `高风险 (${risk})`; riskCol = { light: '#FF9500', dark: '#FF9500' }; riskIc = "exclamationmark.shield.fill"; }
+    else if (risk >= 40) { riskTxt = `中等风险 (${risk})`; riskCol = { light: '#FFD60A', dark: '#FFD60A' }; riskIc = "exclamationmark.shield.fill"; }
+    else { riskTxt = `纯净低危 (${risk})`; riskCol = C_GREEN; riskIc = "checkmark.shield.fill"; }
   }
 
-  // 延迟颜色
   const delayText = costTime > 0 ? `${costTime}ms` : "超时";
   let delayColor = C_GREEN;
-  if (costTime > 100 && costTime <= 300) {
-    delayColor = { light: '#FFCC00', dark: '#FFCC00' };
-  } else if (costTime > 300) {
-    delayColor = { light: '#FF3B30', dark: '#FF3B30' };
-  }
+  if (costTime > 100 && costTime <= 300) delayColor = { light: '#FFCC00', dark: '#FFCC00' };
+  else if (costTime > 300) delayColor = { light: '#FF3B30', dark: '#FF3B30' };
 
   const Row = (ic, icCol, label, val, valCol) => ({
     type: 'stack',
@@ -132,19 +101,14 @@ export default async function(ctx) {
       { type: 'image', src: `sf-symbol:${ic}`, color: icCol, width: 12, height: 12 },
       { type: 'text', text: label, font: { size: 10 }, textColor: C_SUB },
       { type: 'spacer' },
-      { type: 'text', 
-        text: val, 
-        font: { size: 10, weight: 'bold', family: 'Menlo' }, 
-        textColor: valCol, 
-        maxLines: 1 
-      }
+      { type: 'text', text: val, font: { size: 10, weight: 'bold', family: 'Menlo' }, textColor: valCol, maxLines: 1 }
     ]
   });
 
   return {
     type: 'widget',
     padding: [6, 10],
-    backgroundGradient: { type: 'linear', colors: BG_COLORS },
+    backgroundGradient: { type: 'linear', colors: BG_COLORS, startPoint: { x: 0, y: 0 }, endPoint: { x: 1, y: 1 } },
     children: [
       {
         type: 'stack',
@@ -164,17 +128,16 @@ export default async function(ctx) {
         direction: 'column',
         gap: 2,
         children: [
-          Row("iphone", C_GREEN, "内网IP", localIp, C_GREEN),
-          Row("globe", { light: '#9945FF', dark: '#9945FF' }, "直连IP", pubIp, C_MAIN),
-          Row("antenna.radiowaves.left.and.right", { light: '#9945FF', dark: '#9945FF' }, "运营商", pubIsp, C_MAIN),
-          Row("mappin.and.ellipse", { light: '#9945FF', dark: '#9945FF' }, "位置", pubLoc, C_MAIN),
+          Row("iphone", C_GREEN, "内网IP", localIp, C_MAIN),
+          Row("globe", C_TITLE, "直连IP", pubIp, C_MAIN),
+          Row("antenna.radiowaves.left.and.right", C_TITLE, "运营商", pubIsp, C_MAIN),
+          Row("mappin.and.ellipse", C_TITLE, "位置", pubLoc, C_MAIN),
           Row("paperplane.fill", { light: '#FF3B30', dark: '#FF3B30' }, "落地IP", nodeIpWithNative, C_MAIN),
           Row("mappin.and.ellipse", { light: '#FF3B30', dark: '#FF3B30' }, "位置", nLoc, C_MAIN),
           Row("number.square.fill", { light: '#FF3B30', dark: '#FF3B30' }, "ASN信息", asnInfo, C_MAIN),
           Row(riskIc, riskCol, "风险", riskTxt, riskCol)
         ]
-      },
-      { type: 'spacer', length: 1 }
+      }
     ]
   };
 }
