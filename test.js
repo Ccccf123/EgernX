@@ -1,3 +1,5 @@
+/**
+ * ==========================================
  * 📌 代码名称: 🌐 网络信息小组件
  * ✨ 特色功能: 实时显示 Wi-Fi/数据网络状态、内网与网关 IPv4 地址、双端物理位置定位，全面支持 iOS 系统深浅模式（Light/Dark）自适应切换。
  * 🔗 引用链接: https://raw.githubusercontent.com/jnlaoshu/MySelf/master/Egern/Widget/NetworkInfo.js
