@@ -2,12 +2,11 @@
  * 📌 网络·代理·IP纯净度 紧凑不溢出版
  */
 export default async function(ctx) {
-  const BG_COLORS = [{ light: '#0D0D1A', dark: '#0D0D1A' }, { light: '#2D1B69', dark: '#0D0D1A' }];
-  const C_TITLE = { light: '#FFD700', dark: '#FFD700' };
-  const C_SUB   = { light: '#A2A2B5', dark: '#A2A2B5' };
-  const C_GREEN = { light: '#32D74B', dark: '#32D74B' };
-  const C_MAIN  = { light: '#FFFFFF', dark: '#FFFFFF' };
-
+  const BG_COLORS = [{ light: '#FFFFFF', dark: '#1C1C1E' }, { light: '#F4F5F9', dark: '#000000' }];
+  const BLOCK_BG = { light: '#F2F2F7', dark: '#2C2C2E' };
+  const TEXT_MAIN = { light: '#000000', dark: '#FFFFFF' };
+  const TEXT_SUB = { light: '#666666', dark: '#999999' };
+  const TITLE_COLOR = { light: '#007AFF', dark: '#0A84FF' };
   const fmtISP = (isp) => {
     if (!isp) return "未知";
     const s = isp.toLowerCase();
