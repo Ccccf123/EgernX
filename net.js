@@ -1,14 +1,73 @@
-/**
- * 🌤️ 和风天气 - Egern 小组件 (背景统一 & 去除标签版)
- */
+// 和风天气小组件 - 统一背景 & 去除标签版
 
-export default async function(ctx) {
-  const env = ctx.env || {};
-  const widgetFamily = ctx.widgetFamily || 'systemMedium';
+export default async function (ctx) {
+  const host = ctx.env.QW_HOST;
+  const key = ctx.env.QW_KEY;
+  const locationInput = ctx.env.LOCATION || "北京";
+  const cityNameOverride = ctx.env.CITY_NAME || "";
 
-  const apiKey     = (env.KEY || '').trim();
-  const apiHostRaw = (env.API_HOST || '').trim();
-  const location   = (env.LOCATION || '北京').trim();
+  const headers = { "X-QW-Api-Key": key };
+
+  function errorWidget(msg) {
+    return {
+      type: "widget",
+      backgroundColor: "#1C1C1E",
+      padding: 16,
+      children: [
+        { type: "image", src: "sf-symbol:exclamationmark.triangle.fill", color: "#FF9F0A", width: 24, height: 24 },
+        { type: "spacer", length: 8 },
+        { type: "text", text: msg, font: { size: "footnote" }, textColor: "#EBEBF599", maxLines: 3 },
+      ],
+    };
+  }
+
+  const geoCacheKey = `qw_geo_${locationInput}`;
+  let geoInfo = ctx.storage.getJSON(geoCacheKey);
+
+  if (!geoInfo) {
+    let geoResp;
+    try {
+      geoResp = await ctx.http.get(`https://${host}/geo/v2/city/lookup?location=${encodeURIComponent(locationInput)}&number=1&lang=zh`, { headers });
+    } catch (e) { return errorWidget("GeoAPI 请求失败：" + e.message); }
+    const geoData = await geoResp.json();
+    if (geoData.code !== "200" || !geoData.location || geoData.location.length === 0) return errorWidget(`城市解析失败（${geoData.code}）：找不到"${locationInput}"`);
+    const loc = geoData.location[0];
+    geoInfo = { id: loc.id, lat: loc.lat, lon: loc.lon, name: loc.name, adm1: loc.adm1 };
+    ctx.storage.setJSON(geoCacheKey, geoInfo);
+  }
+
+  const cityName = cityNameOverride || geoInfo.name;
+
+  let weather, air;
+  try {
+    const [wResp, aResp] = await Promise.all([
+      ctx.http.get(`https://${host}/v7/weather/now?location=${geoInfo.id}&lang=zh`, { headers }),
+      ctx.http.get(`https://${host}/airquality/v1/current/${geoInfo.lat}/${geoInfo.lon}?lang=zh`, { headers }),
+    ]);
+    weather = await wResp.json();
+    air = await aResp.json();
+  } catch (e) { return errorWidget("天气请求失败：" + e.message); }
+
+  if (weather.code !== "200") return errorWidget(`天气 API 错误 ${weather.code}`);
+
+  const now = weather.now;
+  const aqiIndex = (air.indexes || []).find((i) => i.code === "cn-mee") || (air.indexes || []).find((i) => i.code === "cn-mee-1h") || (air.indexes || [])[0];
+  const aqiVal = aqiIndex ? aqiIndex.aqiDisplay : "—";
+  const aqiColor = aqiIndex ? `rgba(${aqiIndex.color.red},${aqiIndex.color.green},${aqiIndex.color.blue},1)` : "#8E8E93";
+
+  function windLevelName(scale) {
+    const map = { 0: "无风", 1: "软风", 2: "轻风", 3: "微风", 4: "和风", 5: "清风", 6: "强风", 7: "疾风", 8: "大风", 9: "烈风", 10: "狂风", 11: "暴风", 12: "飓风", 13: "台风", 14: "强台风", 15: "强台风", 16: "超强台风", 17: "超强台风" };
+    return map[parseInt(scale, 10)] ?? `${scale}级`;
+  }
+
+  function weatherSFSymbol(iconCode) {
+    const code = parseInt(iconCode, 10);
+    const map = { 100: "sun.max.fill", 150: "moon.stars.fill", 101: "cloud.sun.fill", 104: "cloud.fill", 300: "cloud.sun.rain.fill", 301: "cloud.heavyrain.fill", 302: "cloud.bolt.rain.fill", 305: "cloud.drizzle.fill", 306: "cloud.rain.fill", 400: "cloud.snow.fill", 404: "cloud.sleet.fill", 500: "cloud.fog.fill", 502: "sun.haze.fill", 507: "tornado", 900: "thermometer.sun.fill", 901: "thermometer.snowflake" };
+    return map[code] || "cloud.fill";
+  }
+
+  const refreshTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const weatherIconSrc = `sf-symbol:${weatherSFSymbol(now.icon)}`;
 
   // ✨ 统一极客渐变背景配置
   const BG_GRADIENT = { 
@@ -18,99 +77,23 @@ export default async function(ctx) {
     endPoint: { x: 1, y: 1 } 
   };
 
-  if (!apiKey)     return renderError('缺少 KEY 环境变量');
-  if (!apiHostRaw) return renderError('缺少 API_HOST 环境变量');
+  if (ctx.widgetFamily === "accessoryRectangular") return { type: "widget", refreshAfter: refreshTime, padding: [2, 4, 2, 4], gap: 2, children: [{ type: "stack", direction: "row", alignItems: "center", gap: 6, children: [{ type: "image", src: weatherIconSrc, color: "#FFD60A", width: 16, height: 16 }, { type: "text", text: `${cityName}  ${now.temp}°`, font: { size: "headline", weight: "semibold" }, maxLines: 1 }] }, { type: "text", text: `${now.text}  ${now.humidity}%  ${aqiVal}`, font: { size: "caption1" }, maxLines: 1 }] };
+  if (ctx.widgetFamily === "accessoryCircular") return { type: "widget", refreshAfter: refreshTime, children: [{ type: "stack", direction: "column", alignItems: "center", gap: 2, children: [{ type: "image", src: weatherIconSrc, color: "#FFD60A", width: 20, height: 20 }, { type: "text", text: `${now.temp}°`, font: { size: "title3", weight: "bold" } }] }] };
 
-  const apiHost = normalizeHost(apiHostRaw);
+  const isLarge = ctx.widgetFamily === "systemLarge";
+  const mainChildren = [
+    { type: "stack", direction: "row", alignItems: "center", children: [{ type: "stack", direction: "row", alignItems: "center", gap: 4, flex: 1, children: [{ type: "image", src: "sf-symbol:location.fill", color: "#AADEFC", width: 12, height: 12 }, { type: "text", text: cityName, font: { size: "subheadline", weight: "semibold" }, textColor: "#000000DD", dark: { textColor: "#FFFFFFDD" }, maxLines: 1 }] }, { type: "text", text: weather.updateTime.slice(11, 16), font: { size: "caption2" }, textColor: "#00000066", dark: { textColor: "#FFFFFF66" } }] },
+    { type: "spacer", length: 6 },
+    { type: "stack", direction: "row", alignItems: "center", gap: 12, children: [{ type: "image", src: weatherIconSrc, color: "#000000", dark: { color: "#FFFFFF" }, width: 52, height: 52 }, { type: "stack", direction: "column", gap: 2, children: [{ type: "text", text: `${now.temp}°`, font: { size: "largeTitle", weight: "bold" }, textColor: "#000000", dark: { textColor: "#FFFFFF" } }, { type: "text", text: now.text, font: { size: "subheadline" }, textColor: "#000000CC", dark: { textColor: "#FFFFFFCC" } }] }] },
+    { type: "spacer" },
+    { type: "stack", direction: "row", alignItems: "center", children: [{ type: "stack", direction: "column", alignItems: "center", flex: 1, gap: 3, children: [{ type: "image", src: "sf-symbol:humidity.fill", color: "#AADEFC", width: 16, height: 16 }, { type: "text", text: `${now.humidity}%`, font: { size: "caption1", weight: "semibold" }, textColor: "#000000", dark: { textColor: "#FFFFFF" } }] }, { type: "stack", direction: "column", alignItems: "center", flex: 1, gap: 3, children: [{ type: "image", src: "sf-symbol:wind", color: "#A8F0C0", width: 16, height: 16 }, { type: "text", text: windLevelName(now.windScale), font: { size: "caption1", weight: "semibold" }, textColor: "#000000", dark: { textColor: "#FFFFFF" } }] }, { type: "stack", direction: "column", alignItems: "center", flex: 1, gap: 3, children: [{ type: "image", src: "sf-symbol:aqi.medium", color: aqiColor, width: 16, height: 16 }, { type: "text", text: aqiVal, font: { size: "caption1", weight: "semibold" }, textColor: "#000000", dark: { textColor: "#FFFFFF" } }] }] }
+  ];
 
-  try {
-    const { lon, lat, city } = await getLocation(ctx, location, apiKey, apiHost);
-    const now = await fetchWeatherNow(ctx, apiKey, lon, lat, apiHost);
-
-    let air = null;
-    if (widgetFamily !== 'systemSmall' && !isAccessoryFamily(widgetFamily)) {
-      air = await fetchAirQuality(ctx, apiKey, lon, lat, apiHost);
-    }
-
-    let widget;
-    if (isAccessoryFamily(widgetFamily)) {
-      widget = renderAccessoryCompact(now, city, widgetFamily);
-    } else if (widgetFamily === 'systemSmall') {
-      widget = renderSmall(now, city);
-    } else {
-      widget = renderMedium(now, air, city);
-    }
-
-    return { ...widget, backgroundGradient: BG_GRADIENT };
-
-  } catch (e) {
-    return renderError(`请求失败：${e.message.slice(0, 60)}`);
-  }
+  return {
+    type: "widget",
+    refreshAfter: refreshTime,
+    backgroundGradient: BG_GRADIENT,
+    padding: 16,
+    children: mainChildren
+  };
 }
-
-function normalizeHost(host) { let h = host; if (!/^https?:\/\//i.test(h)) h = 'https://' + h; return h.replace(/\/+$/, ''); }
-function isAccessoryFamily(family) { return family.startsWith('accessory'); }
-
-async function getLocation(ctx, locName, key, host) {
-  const presets = { '北京': { lon: '116.4074', lat: '39.9042' }, '上海': { lon: '121.4737', lat: '31.2304' }, '广州': { lon: '113.2644', lat: '23.1291' }, '深圳': { lon: '114.0579', lat: '22.5431' }, '成都': { lon: '104.0657', lat: '30.6595' } };
-  if (presets[locName]) return { ...presets[locName], city: locName };
-  try {
-    const url = `${host}/geo/v2/city/lookup?location=${encodeURIComponent(locName)}&key=${key}&number=1&lang=zh`;
-    const resp = await ctx.http.get(url, { timeout: 6000 });
-    const data = await resp.json();
-    if (data.code === '200' && data.location?.[0]) return { lon: data.location[0].lon, lat: data.location[0].lat, city: data.location[0].name };
-  } catch {}
-  return { lon: '116.4074', lat: '39.9042', city: locName || '北京' };
-}
-
-async function fetchWeatherNow(ctx, key, lon, lat, host) {
-  const url = `${host}/v7/weather/now?location=${lon},${lat}&key=${key}&lang=zh`;
-  const resp = await ctx.http.get(url, { timeout: 8000 });
-  const data = await resp.json();
-  return { temp: data.now.temp, text: data.now.text, icon: data.now.icon, humidity: data.now.humidity, windDir: data.now.windDir || '--', windScale: data.now.windScale || '--', windSpeed: data.now.windSpeed || '--' };
-}
-
-async function fetchAirQuality(ctx, key, lon, lat, host) {
-  try {
-    const url = `${host}/v7/air/now?location=${lon},${lat}&key=${key}&lang=zh`;
-    const resp = await ctx.http.get(url, { timeout: 7000 });
-    const data = await resp.json();
-    if (data.code === '200' && data.now?.aqi) return { aqi: data.now.aqi, category: data.now.category, color: getAQIColor(data.now.aqi) };
-  } catch {}
-  return { aqi: '--', category: '--', color: { light: '#999', dark: '#888' } };
-}
-
-function getAQIColor(val) {
-  const n = Number(val);
-  if (n <= 50) return { light: '#4CD964', dark: '#34C759' };
-  if (n <= 100) return { light: '#FFCC00', dark: '#FF9500' };
-  return { light: '#FF3B30', dark: '#FF453A' };
-}
-
-function getWeatherIcon(code) {
-  const map = { '100': 'sun.max.fill', '101': 'cloud.sun.fill', '104': 'cloud.fill', '300': 'cloud.drizzle.fill', '306': 'cloud.rain.fill', '400': 'snowflake' };
-  return map[code] || 'cloud.fill';
-}
-
-function renderSmall(now, city) {
-  return { type: 'widget', padding: 14, children: [{ type: 'text', text: city, font: { size: 'caption1' } }, { type: 'text', text: `${now.temp}°`, font: { size: 'title2', weight: 'bold' } }] };
-}
-
-function renderMedium(now, air, city) {
-  const timeStr = `${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2,'0')}`;
-  return { type: 'widget', padding: 16, gap: 12, children: [
-    { type: 'stack', direction: 'row', children: [{ type: 'text', text: city, font: { size: 'title3', weight: 'bold' } }, { type: 'spacer' }, { type: 'text', text: `${air.aqi}`, textColor: air.color }] },
-    { type: 'stack', direction: 'row', alignItems: 'center', gap: 10, children: [
-      { type: 'image', src: `sf-symbol:${getWeatherIcon(now.icon)}`, width: 40, height: 40 },
-      { type: 'text', text: `${now.temp}°C`, font: { size: 'largeTitle', weight: 'bold' } }
-    ]},
-    { type: 'stack', direction: 'row', children: [
-      { type: 'text', text: `${now.humidity}%`, font: { size: 'caption1' } },
-      { type: 'spacer' },
-      { type: 'text', text: `${now.windScale}级`, font: { size: 'caption1' } }
-    ]}
-  ]};
-}
-
-function renderAccessoryCompact(now, city, family) { return { type: 'widget', padding: 8, children: [{ type: 'text', text: `${now.temp}°` }] }; }
-function renderError(msg) { return { type: 'widget', padding: 16, children: [{ type: 'text', text: msg, textColor: '#FF3B30' }] }; }
