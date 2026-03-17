@@ -1,7 +1,7 @@
 /**
  * ==========================================
- * 📌 代码名称: ✈️ 机场订阅流量监控 (标题时间版)
- * ✨ 特色功能: 苹果图标标题；右上角更新时间；紧凑多色布局。
+ * 📌 代码名称: ✈️ 机场订阅流量监控 (12h 定时版)
+ * ✨ 特色功能: 12小时刷新建议；标题栏；更新时间；10段进度条。
  * ⏱️ 更新时间: 2026.03.17
  * ==========================================
  */
@@ -26,48 +26,47 @@ export default async function (ctx) {
   const C_EMPTY = { light: '#E5E5EA', dark: '#2C2C2E' };
 
   const THEME_COLORS = [
-    { light: '#5AC8FA', dark: '#64D2FF' }, 
-    { light: '#34C759', dark: '#30D158' }, 
-    { light: '#FFCC00', dark: '#FFD60A' }, 
-    { light: '#AF52DE', dark: '#BF5AF2' }, 
-    { light: '#007AFF', dark: '#0A84FF' }, 
+    { light: '#5AC8FA', dark: '#64D2FF' }, { light: '#34C759', dark: '#30D158' }, 
+    { light: '#FFCC00', dark: '#FFD60A' }, { light: '#AF52DE', dark: '#BF5AF2' }, 
+    { light: '#007AFF', dark: '#0A84FF' }
   ];
 
   const results = await Promise.all(slots.map((s) => fetchSub(ctx, s)));
   
-  // 获取当前更新时间
+  // 🕒 获取更新时间
   const now = new Date();
   const updateTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  
+  // ⏲️ 计算 12 小时后的刷新时刻
+  const refreshDate = new Date(now.getTime() + 12 * 60 * 60 * 1000);
 
   return {
     type: "widget",
+    refreshAfterDate: refreshDate, // 🚀 建议系统 12 小时后刷新
     padding: [12, 14, 10, 14], 
     backgroundGradient: { type: "linear", colors: BG_COLORS, startPoint: { x: 0, y: 0 }, endPoint: { x: 1, y: 1 } },
     children: [
-      // --- 🚀 新增标题栏 ---
       {
         type: "stack", direction: "row", alignItems: "center", marginBottom: 8,
         children: [
-          { type: "text", text: "🌐 订阅机场", font: { size: 12, weight: "heavy" }, textColor: C_MAIN },
+          { type: "text", text: " 订阅机场", font: { size: 13, weight: "heavy" }, textColor: C_RED },
           { type: "spacer" },
           { type: "text", text: `更新于 ${updateTime}`, font: { size: 9 }, textColor: C_SUB }
         ]
       },
-      // --- 机场列表 ---
       {
         type: "stack", direction: "column", gap: 6, 
-        children: results.length > 0 ? results.map((res, index) => {
+        children: results.map((res, index) => {
           const baseColor = THEME_COLORS[index % THEME_COLORS.length];
           return buildRow(res, { baseColor, C_RED, C_SUB, C_MAIN, C_EMPTY });
-        }) : [
-          { type: "text", text: "请在环境变量设置 URL1", textColor: C_RED, font: {size: 11}, textAlign: "center" }
-        ]
+        })
       },
       { type: "spacer" }
     ]
   };
 }
 
+// --- 辅助函数保持不变 ---
 async function fetchSub(ctx, slot) {
   const uas = ["Quantumult%20X/1.5.2", "ClashNext/1.0", "Surge/5.0"];
   for (let ua of uas) {
@@ -96,22 +95,19 @@ function buildRow(res, col) {
     return {
       type: "stack", direction: "row", children: [
         { type: "text", text: `! ${res.name}`, font: { size: 10, weight: "bold" }, textColor: col.C_SUB },
-        { type: "spacer" },
-        { type: "text", text: "连接失败", font: { size: 9 }, textColor: col.C_RED }
+        { type: "spacer" }, { type: "text", text: "获取失败", font: { size: 9 }, textColor: col.C_RED }
       ]
     };
   }
-
   const barColor = res.percent >= 85 ? col.C_RED : col.baseColor;
   const activeSegments = Math.round(res.percent / 10);
-
   return {
     type: "stack", direction: "column", gap: 3,
     children: [
       {
         type: "stack", direction: "row", alignItems: "center",
         children: [
-          { type: "text", text: res.name, font: { size: 10, weight: "bold" }, textColor: col.C_MAIN, maxLines: 1 },
+          { type: "text", text: res.name, font: { size: 10.5, weight: "bold" }, textColor: col.C_MAIN, maxLines: 1 },
           { type: "spacer" },
           { type: "text", text: res.dateMsg, font: { size: 8.5, family: "Menlo" }, textColor: col.C_SUB }
         ]
@@ -126,7 +122,7 @@ function buildRow(res, col) {
       {
         type: "stack", direction: "row",
         children: [
-          { type: "text", text: fmtFlowCompare(res.used, res.total), font: { size: 8.5, family: "Menlo" }, textColor: col.C_SUB },
+          { type: "text", text: fmtFlow(res.used, res.total), font: { size: 8.5, family: "Menlo" }, textColor: col.C_SUB },
           { type: "spacer" },
           { type: "text", text: `${res.percent.toFixed(1)}%`, font: { size: 9, weight: "heavy" }, textColor: barColor }
         ]
@@ -135,11 +131,11 @@ function buildRow(res, col) {
   };
 }
 
-function fmtFlowCompare(used, total) {
+function fmtFlow(used, total) {
   const units = ["B", "K", "M", "G", "T"];
   const i = total > 0 ? Math.floor(Math.log(total) / Math.log(1024)) : 0;
   const div = Math.pow(1024, i);
-  return `${(used / div).toFixed(1)}${units[i]}/${(total / div).toFixed(1)}${units[i]}`;
+  return `${(used/div).toFixed(1)}${units[i]}/${(total/div).toFixed(1)}${units[i]}`;
 }
 
 function formatDate(ts) {
