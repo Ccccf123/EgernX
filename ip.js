@@ -131,19 +131,17 @@ export default async function(ctx) {
 
     const r1Content = [internalIP, gatewayIP !== internalIP ? gatewayIP : null].filter(Boolean).join(" / ");
 
-    // ✅ 修正省市逻辑
-    let province = '';
-    let city = '';
-    if (Array.isArray(local.location) && local.location.length >= 2) {
-      const locFiltered = local.location.filter(i => !/电信|移动|联通|广电|IP|China|中国/.test(i));
-      if (locFiltered.length >= 2) {
-        province = locFiltered[locFiltered.length - 2];
-        city = locFiltered[locFiltered.length - 1];
-      } else if (locFiltered.length === 1) {
-        city = locFiltered[0];
+    // ✅ 修改后的省市逻辑：过滤干扰项并去重提取
+    let locStr = "";
+    if (Array.isArray(local.location)) {
+      const tags = local.location.filter(i => i && !/电信|移动|联通|广电|IP|China|中国|数据中心/i.test(i));
+      const uniqueTags = [...new Set(tags)]; // 去重处理，防止“上海.上海”
+      if (uniqueTags.length >= 2) {
+        locStr = `${uniqueTags[uniqueTags.length - 2]}.${uniqueTags[uniqueTags.length - 1]}`;
+      } else if (uniqueTags.length === 1) {
+        locStr = uniqueTags[0];
       }
     }
-    const locStr = province && city ? `${province}.${city}` : province || city;
     const r2Content = [local.ip || "获取中...", locStr].filter(Boolean).join(" / ");
 
     const nodeLoc = [getFlagEmoji(node.countryCode), node.country, node.city].filter(Boolean).join(" ");
