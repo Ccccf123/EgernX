@@ -61,13 +61,24 @@ export default async function(ctx) {
     const rawISP = (Array.isArray(local.location) ? local.location[local.location.length - 1] : "") || node?.isp || node?.org;
     const currentISP = fmtISP(rawISP);
     
+    const ispColor = currentISP === "中国电信" ? C.blue : C.main;
+
     const rawRadio = cellularRadio ? String(cellularRadio).toUpperCase().trim() : "";
     const radioType = { "GPRS": "2G", "EDGE": "2.75G", "LTE": "4G", "LTE-CA": "4G+", "NR": "5G" }[rawRadio] || rawRadio;
     const jumpUrl = { "中国移动": "leadeon://", "中国电信": "ctclient://", "中国联通": "chinaunicom://" }[currentISP] || "";
 
     const r1Content = [internalIP || "未连接", gatewayIP !== internalIP ? gatewayIP : null].filter(Boolean).join(" / ");
-    const locStr = Array.isArray(local.location) ? local.location.slice(0, 3).join('').trim() : '';
+
+    // 本地地址使用 ipip.net 显示省.市
+    let province = '';
+    let city = '';
+    if (Array.isArray(local.location)) {
+      province = local.location[0] || '';
+      city = local.location[1] || '';
+    }
+    const locStr = city ? `${province}.${city}` : province;
     const r2Content = [local.ip || "获取中...", locStr].filter(Boolean).join(" / ");
+
     const nodeLoc = [getFlagEmoji(node.countryCode), node.country, node.city].filter(Boolean).join(" ");
     const asnStr = node.as ? String(node.as).split(' ')[0] : "";
     const r3Content = [node.query || node.ip || "获取中...", nodeLoc, asnStr].filter(Boolean).join(" / ");
@@ -89,7 +100,7 @@ export default async function(ctx) {
             { type: 'image', src: `sf-symbol:${icon}`, color, width: 13, height: 13 },
             { type: 'text', text: label, font: { size: 13, weight: 'heavy' }, textColor: color }
         ]},
-        { type: 'text', text: content, font: { size: 12.5, weight: 'heavy', lineHeight: 14 }, textColor: contentColor || C.sub, maxLines: 1, flex: 1 }
+        { type: 'text', text: content, font: { size: 12.5, weight: 'regular', lineHeight: 14 }, textColor: contentColor || C.sub, maxLines: 1, flex: 1 }
       ]
     });
 
@@ -99,12 +110,12 @@ export default async function(ctx) {
       children: [
         { type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
             { type: 'image', src: wifiSsid ? 'sf-symbol:wifi' : (cellularRadio ? 'sf-symbol:antenna.radiowaves.left.and.right' : 'sf-symbol:wifi.slash'), color: C.main, width: 16, height: 16 },
-            { type: 'text', text: `${currentISP} · ${wifiSsid || radioType || "未连接"}`, font: { size: 17, weight: 'heavy' }, textColor: C.main, maxLines: 1, minScale: 0.7 },
+            { type: 'text', text: `${currentISP} · ${wifiSsid || radioType || "未连接"}`, font: { size: 17, weight: 'heavy' }, textColor: ispColor, maxLines: 1, minScale: 0.7 },
             { type: 'spacer' },
             { type: 'stack', direction: 'row', alignItems: 'center', gap: 2, children: [
                 { type: 'image', src: 'sf-symbol:timer', color: pingColor, width: 12, height: 12 },
-                { type: 'text', text: pingMs > 0 ? `${pingMs}` : "--", font: { size: 12, weight: 'bold' }, textColor: pingColor },
-                { type: 'text', text: 'ms', font: { size: 10, weight: 'medium' }, textColor: pingColor }
+                { type: 'text', text: pingMs > 0 ? `${pingMs}` : "--", font: { size: 12, weight: 'regular' }, textColor: pingColor },
+                { type: 'text', text: 'ms', font: { size: 10, weight: 'regular' }, textColor: pingColor }
             ]}
         ]},
         { type: 'spacer', length: 12 }, 
