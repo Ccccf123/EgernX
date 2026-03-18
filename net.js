@@ -1,10 +1,28 @@
 /**
  * ==========================================
  * 📌 代码名称: ✈️ 机场订阅流量监控 (12h 连续进度条版·蓝色标题·完整日期)
- * ✨ 特色功能: 12小时刷新；标题栏（蓝色“订阅机场”）；更新时间；连贯进度条；字体/间距优化
+ * ✨ 特色功能: 标题图标 + 每行小图标（颜色自适应）
  * ⏱️ 更新时间: 2026.03.18
  * ==========================================
  */
+
+// ✅ 标题图标
+const networkIcon = (color, size = 13) => ({
+  type: 'image',
+  src: 'sf-symbol:network',
+  color,
+  width: size,
+  height: size,
+});
+
+// ✅ 小图标（机场用）
+const subIcon = (color, size = 10) => ({
+  type: 'image',
+  src: 'sf-symbol:antenna.radiowaves.left.and.right',
+  color,
+  width: size,
+  height: size,
+});
 
 export default async function (ctx) {
   const MAX = 5;
@@ -47,9 +65,22 @@ export default async function (ctx) {
     backgroundGradient: { type: "linear", colors: BG_COLORS, startPoint: { x: 0, y: 0 }, endPoint: { x: 1, y: 1 } },
     children: [
       {
-        type: "stack", direction: "row", alignItems: "center", gap: 6, marginBottom: 8,
+        type: "stack",
+        direction: "row",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 8,
         children: [
-          { type: "text", text: " 🌐订阅机场", font: { size: 14, weight: "heavy" }, textColor: BLUE },
+          {
+            type: "stack",
+            direction: "row",
+            alignItems: "center",
+            gap: 3,
+            children: [
+              networkIcon(BLUE, 13),
+              { type: "text", text: "订阅机场", font: { size: 14, weight: "heavy" }, textColor: BLUE }
+            ]
+          },
           { type: "spacer" },
           { type: "text", text: `更新于 ${updateTime}`, font: { size: 9 }, textColor: C_SUB }
         ]
@@ -79,7 +110,6 @@ async function fetchSub(ctx, slot) {
         if (total>0) {
           const used = (parse("upload")||0) + (parse("download")||0);
 
-          // ⚡ 日期统一为 YYYY-MM-DD
           let dateMsg = "";
           if(parse("expire")) {
             const expireTs = parse("expire");
@@ -126,7 +156,16 @@ function buildRow(res, col){
       {
         type:"stack", direction:"row", alignItems:"center",
         children:[
-          { type:"text", text:res.name, font:{size:11, weight:"bold"}, textColor:col.C_MAIN, maxLines:1 },
+          {
+            type:"stack",
+            direction:"row",
+            alignItems:"center",
+            gap:3,
+            children:[
+              subIcon(barColor, 10), // ✅ 小图标
+              { type:"text", text:res.name, font:{size:11, weight:"bold"}, textColor:col.C_MAIN, maxLines:1 }
+            ]
+          },
           { type:"spacer" },
           { type:"text", text:res.dateMsg, font:{size:9, family:"Menlo"}, textColor:col.C_SUB }
         ]
@@ -157,7 +196,6 @@ function fmtFlow(used,total){
   return `${(used/div).toFixed(1)}${units[i]}/${(total/div).toFixed(1)}${units[i]}`;
 }
 
-// --- 重置日期完整格式 YYYY-MM-DD ---
 function getResetDate(day){
   const now = new Date();
   let next = new Date(now.getFullYear(), now.getMonth(), day);
