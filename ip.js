@@ -43,7 +43,10 @@ export default async function(ctx) {
 
   try {
     const d = ctx.device || {};
-    const [internalIP, gatewayIP, wifiSsid, cellularRadio] = [d.ipv4?.address, d.ipv4?.gateway, d.wifi?.ssid, d.cellular?.radio];
+    const internalIP = d.ipv4?.address || "未连接";
+    const gatewayIP = d.ipv4?.gateway;
+    const wifiSsid = d.wifi?.ssid || "";
+    const cellularRadio = d.cellular?.radio || "";
 
     const [localResp, nodeResp, pureResp] = await Promise.all([
       httpGet('https://myip.ipip.net/json'), 
@@ -51,25 +54,25 @@ export default async function(ctx) {
       httpGet('https://my.ippure.com/v1/info')
     ]);
 
-    const { data: local, ping: localPing } = localResp;
-    const { data: node, ping: nodePing } = nodeResp;
+    const { data: local = {}, ping: localPing } = localResp;
+    const { data: node = {}, ping: nodePing } = nodeResp;
     const pure = pureResp.data || {}; 
 
     const pingMs = nodePing || localPing || 0;
-    const pingColor = pingMs === 0 ? C.muted : (pingMs < 100 ? C.teal : (pingMs < 200 ? C.gold : C.red));
 
-    const rawISP = (Array.isArray(local.location) ? local.location[local.location.length - 1] : "") || node?.isp || node?.org;
-    const currentISP = fmtISP(rawISP);
-    
-    const ispColor = currentISP === "中国电信" ? C.blue : C.main;
+    const rawISP = (Array.isArray(local.location) ? local.location[local.location.length-1] : "") || node?.isp || node?.org || "";
+    let currentISP = wifiSsid || fmtISP(rawISP);
 
-    const rawRadio = cellularRadio ? String(cellularRadio).toUpperCase().trim() : "";
-    const radioType = { "GPRS": "2G", "EDGE": "2.75G", "LTE": "4G", "LTE-CA": "4G+", "NR": "5G" }[rawRadio] || rawRadio;
-    const jumpUrl = { "中国移动": "leadeon://", "中国电信": "ctclient://", "中国联通": "chinaunicom://" }[currentISP] || "";
+    // ⭐ 仅新增：电信显示网络制式
+    if (!wifiSsid && currentISP.includes("电信") && cellularRadio) {
+      const map = { GPRS:"2G", EDGE:"2G", LTE:"4G", "LTE-CA":"4G+", NR:"5G" };
+      currentISP = `${currentISP} ${map[cellularRadio] || cellularRadio}`;
+    }
 
-    const r1Content = [internalIP || "未连接", gatewayIP !== internalIP ? gatewayIP : null].filter(Boolean).join(" / ");
+    const ispColor = currentISP.includes("电信") ? C.blue : C.main;
 
-    // 本地地址使用 ipip.net 显示省.市
+    const r1Content = [internalIP, gatewayIP !== internalIP ? gatewayIP : null].filter(Boolean).join(" / ");
+
     let province = '';
     let city = '';
     if (Array.isArray(local.location)) {
@@ -83,63 +86,71 @@ export default async function(ctx) {
     const asnStr = node.as ? String(node.as).split(' ')[0] : "";
     const r3Content = [node.query || node.ip || "获取中...", nodeLoc, asnStr].filter(Boolean).join(" / ");
 
-    const risk = pure.fraudScore;
-    let riskColor = C.sub;
-    let riskTxt = "未知风险";
-    if (risk !== undefined) {
-      if (risk >= 80) { riskTxt = `极高危(${risk})`; riskColor = C.red; }
-      else if (risk >= 70) { riskTxt = `高危(${risk})`; riskColor = C.orange; }
-      else if (risk >= 40) { riskTxt = `中危(${risk})`; riskColor = C.gold; }
-      else { riskTxt = `低危(${risk})`; riskColor = C.teal; }
-    }
-    const nativeText = pure.isResidential === true ? "原生住宅" : (pure.isResidential === false ? "商业机房" : "未知属性");
+    const nativeText = pure.isResidential === true ? "家宽" : (pure.isResidential === false ? "机房" : "未知属性");
+    const risk = pure.fraudScore || 0;
+    let riskColor = C.teal;
+    let riskLevel = "低危";
+    if (risk >= 80) { riskLevel = "极高危"; riskColor = C.red; }
+    else if (risk >= 70) { riskLevel = "高危"; riskColor = C.orange; }
+    else if (risk >= 40) { riskLevel = "中危"; riskColor = C.gold; }
 
-    const buildRow = (icon, color, label, content, contentColor) => ({
-      type: 'stack', direction: 'row', alignItems: 'center', gap: 10, children: [ 
-        { type: 'stack', direction: 'row', alignItems: 'center', gap: 5, width: 56, children: [
-            { type: 'image', src: `sf-symbol:${icon}`, color, width: 13, height: 13 },
-            { type: 'text', text: label, font: { size: 13, weight: 'heavy' }, textColor: color }
-        ]},
-        { type: 'text', text: content, font: { size: 12.5, weight: 'regular', lineHeight: 14 }, textColor: contentColor || C.sub, maxLines: 1, flex: 1 }
+    const mediaServices = {
+      GPT: true,       
+      Netflix: false,
+      Disney: true,
+      YouTube: true
+    };
+
+    const buildRow = (icon, label, content, color) => ({
+      type: 'stack', direction: 'row', alignItems: 'center', gap: 10, children: [
+        { type: 'image', src: `sf-symbol:${icon}`, color: color || C.sub, width: 14, height: 14 },
+        { type: 'text', text: label, font: { size: 12.5, weight: 'regular', lineHeight: 14 }, textColor: C.sub },
+        { type: 'stack', direction: 'row', gap: 4, children: content }
       ]
     });
 
+    const mediaContent = Object.entries(mediaServices).map(([name, ok]) => ({
+      type: 'text',
+      text: ok ? `${name} ✅` : `${name} 🚫`,
+      font: { size: 12.5, weight: 'regular', lineHeight: 14 },
+      textColor: ok ? C.teal : C.red
+    }));
+
     const widgetConfig = {
-      type: 'widget', padding: [14, 16, 12, 16], 
+      type: 'widget', padding: [14,16,12,16],
       backgroundGradient: { colors: C.bg, direction: 'topToBottom' },
       children: [
         { type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
             { type: 'image', src: wifiSsid ? 'sf-symbol:wifi' : (cellularRadio ? 'sf-symbol:antenna.radiowaves.left.and.right' : 'sf-symbol:wifi.slash'), color: C.main, width: 16, height: 16 },
-            { type: 'text', text: `${currentISP} · ${wifiSsid || radioType || "未连接"}`, font: { size: 17, weight: 'heavy' }, textColor: ispColor, maxLines: 1, minScale: 0.7 },
+            { type: 'text', text: currentISP, font: { size: 17, weight: 'heavy' }, textColor: ispColor, maxLines: 1, minScale: 0.7 },
             { type: 'spacer' },
             { type: 'stack', direction: 'row', alignItems: 'center', gap: 2, children: [
-                { type: 'image', src: 'sf-symbol:timer', color: pingColor, width: 12, height: 12 },
-                { type: 'text', text: pingMs > 0 ? `${pingMs}` : "--", font: { size: 12, weight: 'regular' }, textColor: pingColor },
-                { type: 'text', text: 'ms', font: { size: 10, weight: 'regular' }, textColor: pingColor }
+                { type: 'image', src: 'sf-symbol:timer', color: C.sub, width: 12, height: 12 },
+                { type: 'text', text: pingMs > 0 ? `${pingMs}ms` : "--", font: { size: 12, weight: 'regular' }, textColor: C.sub }
             ]}
         ]},
-        { type: 'spacer', length: 12 }, 
+        { type: 'spacer', length: 12 },
         { type: 'stack', direction: 'column', alignItems: 'start', gap: 4, children: [
-            buildRow('house.fill', C.teal, '内网', r1Content),
-            buildRow('location.circle.fill', C.blue, '本地', r2Content),
-            buildRow('network', C.purple, '节点', r3Content),
-            buildRow('shield.lefthalf.filled', C.cyan, '属性', `${nativeText} / ${riskTxt}`, riskColor)
+            buildRow('house.fill','内网', [{type:'text', text:r1Content, font:{size:12.5,weight:'regular'}, textColor:C.teal}], C.teal),
+            buildRow('location.circle.fill','本地', [{type:'text', text:r2Content, font:{size:12.5,weight:'regular'}, textColor:C.blue}], C.blue),
+            buildRow('map.fill','落地', [{type:'text', text:r3Content, font:{size:12.5,weight:'regular'}, textColor:C.purple}], C.purple),
+            buildRow('shield.lefthalf.filled','属性', [{type:'text', text:`${nativeText} / ${risk} (${riskLevel})`, font:{size:12.5,weight:'regular'}, textColor:riskColor}], riskColor),
+            buildRow('play.tv','解锁', mediaContent, C.orange)
         ]},
-        { type: 'spacer' } 
+        { type: 'spacer' }
       ]
     };
-    
-    if (jumpUrl) widgetConfig.url = jumpUrl;
+
     return widgetConfig;
 
-  } catch (err) {
+  } catch(err) {
     return {
-      type: 'widget', padding: 12, 
+      type: 'widget', padding: 12,
       backgroundGradient: { colors: C.bg, direction: 'topToBottom' },
       children: [
-        { type: 'text', text: '小组件崩溃 ⚠️', font: { size: 14, weight: 'heavy' }, textColor: '#FF453A' },
+        { type: 'text', text: '小组件崩溃 ⚠️', font: { size: 14, weight: 'heavy' }, textColor: C.red.light },
         { type: 'spacer', length: 4 },
-        { type: 'text', text: String(err.message || err), font: { size: 11 }, textColor: '#8E8E93', maxLines: 5 }
+        { type: 'text', text: String(err.message || err), font: { size: 11 }, textColor: C.muted.light, maxLines: 5 }
       ]
     };
   }
