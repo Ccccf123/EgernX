@@ -1,6 +1,6 @@
 /**
  * ==========================================
- * 📌 代码名称: ✈️ 机场订阅流量监控 (12h 连续进度条版·蓝色标题)
+ * 📌 代码名称: ✈️ 机场订阅流量监控 (12h 连续进度条版·蓝色标题·完整日期)
  * ✨ 特色功能: 12小时刷新；标题栏（蓝色“订阅机场”）；更新时间；连贯进度条；字体/间距优化
  * ⏱️ 更新时间: 2026.03.18
  * ==========================================
@@ -24,11 +24,13 @@ export default async function (ctx) {
   const C_SUB = { light: '#8E8E93', dark: '#8E8E93' };
   const C_MAIN = { light: '#1C1C1E', dark: '#FFFFFF' };
   const C_EMPTY = { light: '#E5E5EA', dark: '#2C2C2E' };
-  const BLUE = { light: '#007AFF', dark: '#0A84FF' }; // 标题栏蓝色
+  const BLUE = { light: '#007AFF', dark: '#0A84FF' };
 
   const THEME_COLORS = [
-    { light: '#5AC8FA', dark: '#64D2FF' }, { light: '#34C759', dark: '#30D158' }, 
-    { light: '#FFCC00', dark: '#FFD60A' }, { light: '#AF52DE', dark: '#BF5AF2' }, 
+    { light: '#5AC8FA', dark: '#64D2FF' },
+    { light: '#34C759', dark: '#30D158' },
+    { light: '#FFCC00', dark: '#FFD60A' },
+    { light: '#AF52DE', dark: '#BF5AF2' },
     BLUE
   ];
 
@@ -44,7 +46,6 @@ export default async function (ctx) {
     padding: [12, 14, 12, 14],
     backgroundGradient: { type: "linear", colors: BG_COLORS, startPoint: { x: 0, y: 0 }, endPoint: { x: 1, y: 1 } },
     children: [
-      // 标题栏：🌐订阅机场 蓝色
       {
         type: "stack", direction: "row", alignItems: "center", gap: 6, marginBottom: 8,
         children: [
@@ -53,7 +54,6 @@ export default async function (ctx) {
           { type: "text", text: `更新于 ${updateTime}`, font: { size: 9 }, textColor: C_SUB }
         ]
       },
-      // 订阅列表
       {
         type: "stack", direction: "column", gap: 6,
         children: results.map((res, index) => {
@@ -78,10 +78,26 @@ async function fetchSub(ctx, slot) {
         const total = parse("total");
         if (total>0) {
           const used = (parse("upload")||0) + (parse("download")||0);
+
+          // ⚡ 日期统一为 YYYY-MM-DD
+          let dateMsg = "";
+          if(parse("expire")) {
+            const expireTs = parse("expire");
+            const d = new Date(expireTs > 10000000000 ? expireTs : expireTs*1000);
+            dateMsg = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          } else if(slot.resetDay) {
+            dateMsg = getResetDate(slot.resetDay);
+          } else {
+            dateMsg = "长期";
+          }
+
           return {
-            name: slot.name, error:false, total, used,
+            name: slot.name,
+            error: false,
+            total,
+            used,
             percent: Math.min((used/total)*100,100),
-            dateMsg: parse("expire") ? formatDate(parse("expire")) : (slot.resetDay ? getResetDate(slot.resetDay) : "长期")
+            dateMsg
           };
         }
       }
@@ -141,14 +157,10 @@ function fmtFlow(used,total){
   return `${(used/div).toFixed(1)}${units[i]}/${(total/div).toFixed(1)}${units[i]}`;
 }
 
-function formatDate(ts){
-  const d=new Date(ts>10000000000?ts:ts*1000);
-  return `${d.getMonth()+1}-${d.getDate()}`;
-}
-
+// --- 重置日期完整格式 YYYY-MM-DD ---
 function getResetDate(day){
-  const now=new Date();
-  let next=new Date(now.getFullYear(), now.getMonth(), day);
-  if(now.getDate()>=day) next=new Date(now.getFullYear(), now.getMonth()+1, day);
-  return `${next.getMonth()+1}-${next.getDate()}重置`;
+  const now = new Date();
+  let next = new Date(now.getFullYear(), now.getMonth(), day);
+  if(now.getDate() >= day) next = new Date(now.getFullYear(), now.getMonth() + 1, day);
+  return `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;
 }
