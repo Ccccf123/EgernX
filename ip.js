@@ -1,25 +1,22 @@
 export default async function(ctx) {
-  // ===================== 1. 统一背景与配色方案 =====================
   const C = {
-    // 渐变背景：深浅模式自动切换
     bg: [{ light: '#FFFFFF', dark: '#1C1C1E' }, { light: '#F4F5F9', dark: '#000000' }],
-    // 文字颜色：高对比度
     main: { light: '#000000', dark: '#FFFFFF' },
-    sub: { light: '#48484A', dark: '#D1D1D6' },
+    sub: { light: '#1C1C1E', dark: '#F2F2F7' }, 
     muted: { light: '#8E8E93', dark: '#8E8E93' },
-    // 语义化图标颜色
     gold: { light: '#FF9500', dark: '#FFD700' },     
+    orange: { light: '#FF6B00', dark: '#FF8800' }, 
     red: { light: '#FF3B30', dark: '#FF453A' },      
     teal: { light: '#34C759', dark: '#30D158' },     
     blue: { light: '#007AFF', dark: '#0A84FF' },     
     purple: { light: '#AF52DE', dark: '#BF5AF2' },   
-    cyan: { light: '#5AC8FA', dark: '#64D2FF' }      
+    cyan: { light: '#5AC8FA', dark: '#64D2FF' }
   };
 
   const httpGet = async (url) => {
     try {
       const start = Date.now();
-      const resp = await ctx.http.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 8000 });
+      const resp = await ctx.http.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 6000 });
       const text = await resp.text();
       const json = JSON.parse(text);
       return { data: json.data || json, ping: Date.now() - start }; 
@@ -65,7 +62,7 @@ export default async function(ctx) {
     const currentISP = fmtISP(rawISP);
     
     const rawRadio = cellularRadio ? String(cellularRadio).toUpperCase().trim() : "";
-    const radioType = { "GPRS": "2.5G", "EDGE": "2.75G", "WCDMA": "3G", "LTE": "4G", "NR": "5G", "NRNSA": "5G" }[rawRadio] || rawRadio;
+    const radioType = { "GPRS": "2G", "EDGE": "2.75G", "LTE": "4G", "LTE-CA": "4G+", "NR": "5G" }[rawRadio] || rawRadio;
     const jumpUrl = { "中国移动": "leadeon://", "中国电信": "ctclient://", "中国联通": "chinaunicom://" }[currentISP] || "";
 
     const r1Content = [internalIP || "未连接", gatewayIP !== internalIP ? gatewayIP : null].filter(Boolean).join(" / ");
@@ -76,28 +73,33 @@ export default async function(ctx) {
     const r3Content = [node.query || node.ip || "获取中...", nodeLoc, asnStr].filter(Boolean).join(" / ");
 
     const risk = pure.fraudScore;
-    const riskTxt = risk === undefined ? "未知风险" : (risk >= 80 ? `极高危(${risk})` : risk >= 70 ? `高危(${risk})` : risk >= 40 ? `中危(${risk})` : `低危(${risk})`);
+    let riskColor = C.sub;
+    let riskTxt = "未知风险";
+    if (risk !== undefined) {
+      if (risk >= 80) { riskTxt = `极高危(${risk})`; riskColor = C.red; }
+      else if (risk >= 70) { riskTxt = `高危(${risk})`; riskColor = C.orange; }
+      else if (risk >= 40) { riskTxt = `中危(${risk})`; riskColor = C.gold; }
+      else { riskTxt = `低危(${risk})`; riskColor = C.teal; }
+    }
     const nativeText = pure.isResidential === true ? "原生住宅" : (pure.isResidential === false ? "商业机房" : "未知属性");
-    const r4Content = `${nativeText} / ${riskTxt}`;
 
-    const buildRow = (icon, color, label, content) => ({
-      type: 'stack', direction: 'row', alignItems: 'center', gap: 4, children: [
-        { type: 'stack', direction: 'row', alignItems: 'center', gap: 2, width: 45, children: [
+    const buildRow = (icon, color, label, content, contentColor) => ({
+      type: 'stack', direction: 'row', alignItems: 'center', gap: 10, children: [ 
+        { type: 'stack', direction: 'row', alignItems: 'center', gap: 5, width: 56, children: [
             { type: 'image', src: `sf-symbol:${icon}`, color, width: 13, height: 13 },
-            { type: 'text', text: label, font: { size: 12, weight: 'heavy' }, textColor: color }
+            { type: 'text', text: label, font: { size: 13, weight: 'heavy' }, textColor: color }
         ]},
-        { type: 'text', text: content, font: { size: 12, weight: 'medium' }, textColor: C.sub, maxLines: 1, flex: 1 }
+        { type: 'text', text: content, font: { size: 12.5, weight: 'heavy', lineHeight: 14 }, textColor: contentColor || C.sub, maxLines: 1, flex: 1 }
       ]
     });
 
     const widgetConfig = {
-      type: 'widget', padding: 12, 
-      // 统一背景渐变方向为 topToBottom（更稳重）
+      type: 'widget', padding: [14, 16, 12, 16], 
       backgroundGradient: { colors: C.bg, direction: 'topToBottom' },
       children: [
         { type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
             { type: 'image', src: wifiSsid ? 'sf-symbol:wifi' : (cellularRadio ? 'sf-symbol:antenna.radiowaves.left.and.right' : 'sf-symbol:wifi.slash'), color: C.main, width: 16, height: 16 },
-            { type: 'text', text: `${currentISP} · ${wifiSsid || radioType || "未连接"}`, font: { size: 15, weight: 'heavy' }, textColor: C.main, maxLines: 1, minScale: 0.7 },
+            { type: 'text', text: `${currentISP} · ${wifiSsid || radioType || "未连接"}`, font: { size: 17, weight: 'heavy' }, textColor: C.main, maxLines: 1, minScale: 0.7 },
             { type: 'spacer' },
             { type: 'stack', direction: 'row', alignItems: 'center', gap: 2, children: [
                 { type: 'image', src: 'sf-symbol:timer', color: pingColor, width: 12, height: 12 },
@@ -105,12 +107,12 @@ export default async function(ctx) {
                 { type: 'text', text: 'ms', font: { size: 10, weight: 'medium' }, textColor: pingColor }
             ]}
         ]},
-        { type: 'spacer', length: 8 }, 
-        { type: 'stack', direction: 'column', alignItems: 'start', gap: 8, children: [
+        { type: 'spacer', length: 12 }, 
+        { type: 'stack', direction: 'column', alignItems: 'start', gap: 4, children: [
             buildRow('house.fill', C.teal, '内网', r1Content),
             buildRow('location.circle.fill', C.blue, '本地', r2Content),
             buildRow('network', C.purple, '节点', r3Content),
-            buildRow('shield.lefthalf.filled', C.cyan, '属性', r4Content)
+            buildRow('shield.lefthalf.filled', C.cyan, '属性', `${nativeText} / ${riskTxt}`, riskColor)
         ]},
         { type: 'spacer' } 
       ]
