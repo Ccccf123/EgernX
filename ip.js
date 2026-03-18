@@ -13,10 +13,10 @@ export default async function(ctx) {
     cyan: { light: '#5AC8FA', dark: '#64D2FF' }
   };
 
-  const httpGet = async (url) => {
+  const httpGet = async (url, ua) => {
     try {
       const start = Date.now();
-      const resp = await ctx.http.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 6000 });
+      const resp = await ctx.http.get(url, { headers: { "User-Agent": ua || "Mozilla/5.0" }, timeout: 6000 });
       const text = await resp.text();
       const json = JSON.parse(text);
       return { data: json.data || json, ping: Date.now() - start }; 
@@ -41,6 +41,62 @@ export default async function(ctx) {
     return raw || "未知";
   };
 
+  const BASE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1";
+
+  const readBody = async (r) => {
+    if (!r) return "";
+    if (typeof r.body === "string" && r.body.length) return r.body;
+    if (typeof r.text === "function") {
+      try { return String(await r.text()); } catch { return ""; }
+    }
+    return "";
+  };
+
+  async function checkNetflix(ctx) {
+    try {
+      const url = "https://www.netflix.com/title/81280792";
+      const res = await ctx.http.get(url, { headers: { "User-Agent": BASE_UA }, followRedirect: true, timeout: 10000 }).catch(() => null);
+      const body = await readBody(res);
+      if (!body) return false;
+      return !/oh no!/i.test(body);
+    } catch { return false; }
+  }
+
+  async function checkGPT(ctx) {
+    try {
+      const res = await ctx.http.get("https://chatgpt.com", { headers: { "User-Agent": BASE_UA }, timeout: 8000, followRedirect: true });
+      return !!res;
+    } catch { return false; }
+  }
+
+  async function checkGemini(ctx) {
+    try {
+      const res = await ctx.http.get("https://gemini.google.com/", {
+        headers: { "User-Agent": BASE_UA },
+        timeout: 10000,
+        followRedirect: true
+      }).catch(() => null);
+
+      const body = await readBody(res);
+      if (!body) return false;
+
+      if (/not available|unavailable|region/i.test(body)) return false;
+      if (/Gemini|Google AI/i.test(body)) return true;
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  async function checkTikTok(ctx) {
+    try {
+      const res = await ctx.http.get("https://www.tiktok.com/", { headers: { "User-Agent": BASE_UA }, timeout: 10000, followRedirect: true });
+      const url = res?.url || "";
+      return !url.includes("challenge") && !url.includes("blocked");
+    } catch { return false; }
+  }
+
   try {
     const d = ctx.device || {};
     const internalIP = d.ipv4?.address || "未连接";
@@ -48,22 +104,24 @@ export default async function(ctx) {
     const wifiSsid = d.wifi?.ssid || "";
     const cellularRadio = d.cellular?.radio || "";
 
-    const [localResp, nodeResp, pureResp] = await Promise.all([
-      httpGet('https://myip.ipip.net/json'), 
-      httpGet('http://ip-api.com/json/?lang=zh-CN'),
-      httpGet('https://my.ippure.com/v1/info')
+    const [localResp, nodeResp, pureResp, nf, gpt, gem, tiktok] = await Promise.all([
+      httpGet('https://myip.ipip.net/json', BASE_UA), 
+      httpGet('http://ip-api.com/json/?lang=zh-CN', BASE_UA),
+      httpGet('https://my.ippure.com/v1/info', BASE_UA),
+      checkNetflix(ctx),
+      checkGPT(ctx),
+      checkGemini(ctx),
+      checkTikTok(ctx)
     ]);
 
     const { data: local = {}, ping: localPing } = localResp;
     const { data: node = {}, ping: nodePing } = nodeResp;
     const pure = pureResp.data || {}; 
-
     const pingMs = nodePing || localPing || 0;
 
     const rawISP = (Array.isArray(local.location) ? local.location[local.location.length-1] : "") || node?.isp || node?.org || "";
     let currentISP = wifiSsid || fmtISP(rawISP);
 
-    // ⭐ 仅新增：电信显示网络制式
     if (!wifiSsid && currentISP.includes("电信") && cellularRadio) {
       const map = { GPRS:"2G", EDGE:"2G", LTE:"4G", "LTE-CA":"4G+", NR:"5G" };
       currentISP = `${currentISP} ${map[cellularRadio] || cellularRadio}`;
@@ -73,13 +131,19 @@ export default async function(ctx) {
 
     const r1Content = [internalIP, gatewayIP !== internalIP ? gatewayIP : null].filter(Boolean).join(" / ");
 
+    // ✅ 修正省市逻辑
     let province = '';
     let city = '';
-    if (Array.isArray(local.location)) {
-      province = local.location[0] || '';
-      city = local.location[1] || '';
+    if (Array.isArray(local.location) && local.location.length >= 2) {
+      const locFiltered = local.location.filter(i => !/电信|移动|联通|广电|IP|China|中国/.test(i));
+      if (locFiltered.length >= 2) {
+        province = locFiltered[locFiltered.length - 2];
+        city = locFiltered[locFiltered.length - 1];
+      } else if (locFiltered.length === 1) {
+        city = locFiltered[0];
+      }
     }
-    const locStr = city ? `${province}.${city}` : province;
+    const locStr = province && city ? `${province}.${city}` : province || city;
     const r2Content = [local.ip || "获取中...", locStr].filter(Boolean).join(" / ");
 
     const nodeLoc = [getFlagEmoji(node.countryCode), node.country, node.city].filter(Boolean).join(" ");
@@ -95,10 +159,10 @@ export default async function(ctx) {
     else if (risk >= 40) { riskLevel = "中危"; riskColor = C.gold; }
 
     const mediaServices = {
-      GPT: true,       
-      Netflix: false,
-      Disney: true,
-      YouTube: true
+      GPT: gpt,
+      Netflix: nf,
+      TikTok: tiktok,
+      Gemini: gem
     };
 
     const buildRow = (icon, label, content, color) => ({
@@ -130,7 +194,7 @@ export default async function(ctx) {
             ]}
         ]},
         { type: 'spacer', length: 12 },
-        { type: 'stack', direction: 'column', alignItems: 'start', gap: 4, children: [
+        { type: 'stack', direction: 'column', alignItems: 'start', gap: 6, children: [
             buildRow('house.fill','内网', [{type:'text', text:r1Content, font:{size:12.5,weight:'regular'}, textColor:C.teal}], C.teal),
             buildRow('location.circle.fill','本地', [{type:'text', text:r2Content, font:{size:12.5,weight:'regular'}, textColor:C.blue}], C.blue),
             buildRow('map.fill','落地', [{type:'text', text:r3Content, font:{size:12.5,weight:'regular'}, textColor:C.purple}], C.purple),
