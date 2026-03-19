@@ -1,11 +1,11 @@
-// 网络测速小组件 (Speedtest Pro - 多彩图标版)
-// 逻辑：同步和风背景 + 橘色主速度 + 底部彩色状态组
+// 网络测速小组件 (Speedtest 完美还原版)
+// 逻辑：API 真实提取 | 蓝色标题 | 橘色速度 | 底部彩色组 | 右上角详细信息
 
 export default async function (ctx) {
   const mb = 10; 
   const bytes = Math.round(mb * 1024 * 1024);
+  const deviceModel = "iPhone 16 Pro"; 
 
-  // 背景色配置 (同步和风天气)
   const BG_GRADIENT = {
     type: "linear",
     colors: [{ light: '#FFFFFF', dark: '#1C1C1E' }, { light: '#F4F5F9', dark: '#000000' }],
@@ -19,36 +19,41 @@ export default async function (ctx) {
   let duration = "--";
   let usedData = "--"; 
   let timeLabel = "--";
+  
   let nodeIp = "获取中...";
+  let nodeFlag = "";
   let nodeLocation = "";
+  let ispName = "";
+
+  const getFlagEmoji = (countryCode) => {
+    if (!countryCode) return "";
+    return countryCode.toUpperCase().replace(/./g, char => String.fromCodePoint(127397 + char.charCodeAt()));
+  };
 
   try {
-    const traceResp = await ctx.http.get("https://speed.cloudflare.com/cdn-cgi/trace", { timeout: 3000 });
-    const traceText = await traceResp.text();
-    const ipMatch = traceText.match(/ip=(.*)/);
-    const locMatch = traceText.match(/loc=(.*)/);
-    nodeIp = ipMatch ? ipMatch[1] : "未知IP";
-    nodeLocation = locMatch ? ` (${locMatch[1].toUpperCase()})` : "";
+    // 1. 真实数据提取
+    const ipInfoResp = await ctx.http.get("http://ip-api.com/json/?fields=status,countryCode,city,isp,query", { timeout: 5000 });
+    const ipInfo = await ipInfoResp.json();
 
+    if (ipInfo.status === "success") {
+      nodeIp = ipInfo.query;
+      nodeFlag = getFlagEmoji(ipInfo.countryCode);
+      nodeLocation = ipInfo.city;
+      ispName = ipInfo.isp;
+    }
+
+    // 2. 测速逻辑
     const pingStart = Date.now();
     await ctx.http.get("https://www.speedtest.net/generate_204", { timeout: 5000 });
-    const pingEnd = Date.now();
-    const rawPing = pingEnd - pingStart;
+    const rawPing = Date.now() - pingStart;
 
     const dlStart = Date.now();
-    const dlResp = await ctx.http.get(
-      `https://speed.cloudflare.com/__down?bytes=${bytes}&_=${Date.now()}`,
-      { timeout: 15000 } 
-    );
+    const dlResp = await ctx.http.get(`https://speed.cloudflare.com/__down?bytes=${bytes}&_=${Date.now()}`, { timeout: 15000 });
     await dlResp.arrayBuffer(); 
 
-    const dlEnd = Date.now();
-    const dlDuration = (dlEnd - dlStart) / 1000;
-    const rawMBs = mb / dlDuration;
-    const rawMbps = rawMBs * 8;
-
-    speedMBs = rawMBs.toFixed(2);
-    speedMbps = rawMbps.toFixed(1);
+    const dlDuration = (Date.now() - dlStart) / 1000;
+    speedMBs = (mb / dlDuration).toFixed(2);
+    speedMbps = (speedMBs * 8).toFixed(1);
     ping = rawPing;
     duration = dlDuration.toFixed(2);
     usedData = mb.toFixed(1) + "MB";
@@ -57,21 +62,18 @@ export default async function (ctx) {
     nodeIp = "连接超时";
   }
 
-  // 颜色定义 (兼容深浅模式)
   const C = {
     textMain:   { light: "#000000", dark: "#FFFFFF" },
     textSub:    { light: "#8E8E93", dark: "#AEAEB2" },
-    // 速度颜色：橘色
+    titleBlue:  { light: "#003EB3", dark: "#00D2FF" }, 
     speedMain:  { light: "#FF9500", dark: "#FF9F0A" },
     speedMbps:  { light: "#FF9500CC", dark: "#FF9F0ACC" },
-    // 底部彩色组
-    c_ping:     { light: "#32ADE6", dark: "#64D2FF" }, // 蓝色 (延迟)
-    c_duration: { light: "#AF52DE", dark: "#BF5AF2" }, // 紫色 (耗时)
-    c_data:     { light: "#34C759", dark: "#30D158" }, // 绿色 (流量)
-    c_time:     { light: "#FF3B30", dark: "#FF453A" }, // 红色 (时间)
+    c_ping:     { light: "#007AFF", dark: "#0A84FF" }, 
+    c_duration: { light: "#8944AB", dark: "#BF5AF2" }, 
+    c_data:     { light: "#248A3D", dark: "#30D158" }, 
+    c_time:     { light: "#FF3B30", dark: "#FF453A" }, 
   };
 
-  // 底部统计项组件 (支持独立颜色)
   const statItem = (icon, value, color) => ({
     type: "stack",
     direction: "row",
@@ -89,15 +91,26 @@ export default async function (ctx) {
     backgroundGradient: BG_GRADIENT,
     refreshAfter: new Date(Date.now() + 60 * 1000).toISOString(),
     children: [
-      // 第一层：标题与位置
+      // 第一层：左右结构 (标题 vs 详细信息)
       {
         type: "stack",
         direction: "row",
-        alignItems: "center",
+        alignItems: "start",
         children: [
-          { type: "text", text: "Speedtest Pro", font: { size: 14, weight: "heavy" }, textColor: C.textMain },
+          { type: "text", text: "Speedtest", font: { size: 14, weight: "heavy" }, textColor: C.titleBlue },
           { type: "spacer" },
-          { type: "text", text: `${nodeIp}${nodeLocation}`, font: { size: 10 }, textColor: C.textSub },
+          // 右侧详细信息堆栈
+          {
+            type: "stack",
+            direction: "column",
+            alignItems: "end",
+            gap: 1,
+            children: [
+              { type: "text", text: `${nodeIp}${nodeFlag}`, font: { size: 12, weight: "bold" }, textColor: C.textSub },
+              { type: "text", text: nodeLocation ? `${nodeLocation} | ${ispName}` : "", font: { size: 10, weight: "bold" }, textColor: C.textSub },
+              { type: "text", text: deviceModel, font: { size: 10, weight: "bold" }, textColor: C.textSub },
+            ]
+          }
         ],
       },
 
