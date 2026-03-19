@@ -1,32 +1,33 @@
-// 网络测速小组件 (IP真实提取 + 精准网络制式版)
+// 网络测速小组件 (精准运营商缩写 + IP 字段版)
 
 export default async function (ctx) {
   const mb = 10; 
   const bytes = Math.round(mb * 1024 * 1024);
 
-  // --- 1. 核心逻辑：精准判断网络状态 ---
+  // --- 1. 核心逻辑：精准判断网络状态，蜂窝统一显示英文缩写 ---
   const netInfo = ctx.device?.network || {};
   const internalIP = ctx.device?.ipv4?.address || netInfo.ip || "127.0.0.1";
   const radio = (netInfo.radio || "").toLowerCase();
   
   const getNetTag = () => {
-    // 优先判断 Wi-Fi
     if (radio === "wifi" || ctx.device?.wifi?.ssid) return "Wi-Fi";
     
-    // 运营商精准映射
-    const carrierMap = {
-      "ct": "中国电信", "46003": "中国电信", "46005": "中国电信", "46011": "中国电信",
-      "cu": "中国联通", "46001": "中国联通", "46006": "中国联通", "46009": "中国联通",
-      "cm": "中国移动", "46000": "中国移动", "46002": "中国移动", "46007": "中国移动",
-      "cb": "中国广电", "46015": "中国广电"
-    };
+    // 基于 MNC (移动网络码) 的精准映射为英文缩写
+    const carrier = (netInfo.carrier || "").toLowerCase();
+    let opCode = "CELL"; // 默认缩写
+
+    if (carrier.includes("ct") || /46003|46005|46011/.test(carrier)) {
+      opCode = "CT";
+    } else if (carrier.includes("cu") || /46001|46006|46009/.test(carrier)) {
+      opCode = "CU";
+    } else if (carrier.includes("cm") || /46000|46002|46007|46008/.test(carrier)) {
+      opCode = "CM";
+    } else if (carrier.includes("cb") || /46015/.test(carrier)) {
+      opCode = "CB";
+    }
     
-    const carrierCode = (netInfo.carrier || "").toLowerCase();
-    const opName = carrierMap[carrierCode] || "移动网络";
-    
-    // 制式格式化 (如 5G, 4G, LTE)
-    const rat = radio.toUpperCase() || "Cellular";
-    return `${opName} ${rat}`;
+    const rat = radio.toUpperCase() || "LTE";
+    return `${opCode} ${rat}`;
   };
   const netTag = getNetTag();
 
@@ -77,7 +78,7 @@ export default async function (ctx) {
     textMain:   { light: "#000000", dark: "#FFFFFF" },
     textSub:    { light: "#8E8E93", dark: "#AEAEB2" },
     titleBlue:  { light: "#003EB3", dark: "#00D2FF" }, 
-    tagGray:    { light: "#666666", dark: "#888888" }, // 标签颜色
+    tagGray:    { light: "#666666", dark: "#888888" },
     speedMain:  { light: "#FF9500", dark: "#FF9F0A" },
     speedMbps:  { light: "#FF9500CC", dark: "#FF9F0ACC" },
     c_ping:     { light: "#007AFF", dark: "#0A84FF" }, 
@@ -109,7 +110,6 @@ export default async function (ctx) {
             type: "stack", direction: "row", alignItems: "end", gap: 6,
             children: [
               { type: "text", text: "Speedtest", font: { size: 14, weight: "heavy" }, textColor: C.titleBlue },
-              // 网络制式标签：字体更小，颜色区分
               { type: "text", text: netTag, font: { size: 9, weight: "bold" }, textColor: C.tagGray, padding: [0, 0, 1, 0] },
             ]
           },
@@ -119,7 +119,7 @@ export default async function (ctx) {
             children: [
               { type: "text", text: `${nodeIp}${nodeFlag}`, font: { size: 12, weight: "bold" }, textColor: C.textSub },
               { type: "text", text: nodeLocation ? `${nodeLocation} | ${ispName}` : "", font: { size: 10, weight: "bold" }, textColor: C.textSub },
-              { type: "text", text: `Priv: ${internalIP}`, font: { size: 10, weight: "bold" }, textColor: C.textSub },
+              { type: "text", text: `IP: ${internalIP}`, font: { size: 10, weight: "bold" }, textColor: C.textSub },
             ]
           }
         ],
