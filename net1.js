@@ -186,7 +186,7 @@ function buildRow(res, col){
         children:[
           { type:"text", text:fmtFlow(res.used,res.total), font:{size:9, family:"Menlo"}, textColor:col.C_SUB },
           { type:"spacer" },
-          { type:"text", text:`剩余 ${fmtGB(res.remain)}`, font:{size:9, weight:"heavy"}, textColor:barColor }
+          { type:"text", text:` REM: ${fmtGB(res.remain)}`, font:{size:9, weight:"heavy"}, textColor:barColor }
         ]
       }
     ]
