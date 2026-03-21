@@ -9,36 +9,26 @@ export default async function(ctx) {
   if (!apiKey) return renderError('请检查环境变量 KEY');
   const apiHost = normalizeHost(apiHostRaw);
 
-  // ✅ 缓存 key（跟城市绑定）
   const CACHE_KEY = `weather_cache_${location}`;
-  const CACHE_TTL = 2 * 60 * 60 * 1000; // 2小时
+  const CACHE_TTL = 2 * 60 * 60 * 1000;
 
   try {
-    // 读取缓存
     const cache = ctx.storage.get(CACHE_KEY);
     const nowTime = Date.now();
 
     if (cache && (nowTime - cache.time < CACHE_TTL)) {
-      // ✅ 命中缓存
       return renderMedium(cache.data);
     }
 
-    // ❗ 城市变化：旧缓存自然失效（key 已不同）
-
-    // 1. 获取地理坐标
     const loc = await getLocation(ctx, location, apiKey, apiHost);
-
-    // 2. 获取实时天气
     const now = await fetchWeatherNow(ctx, apiKey, loc.lon, loc.lat, apiHost);
 
-    // 3. 预报
     let daily = { tempMax: '25', tempMin: '18' };
     try {
       const d = await fetchWeatherDaily(ctx, apiKey, loc.lon, loc.lat, apiHost);
       if (d) daily = d;
     } catch(e) {}
 
-    // 4. 空气质量
     let air = { aqi: '50', category: '优', color: '#34C759' };
     try {
       const a = await fetchAirQuality(ctx, apiKey, loc.lon, loc.lat, apiHost);
@@ -47,7 +37,6 @@ export default async function(ctx) {
 
     const data = { now, daily, air, city: loc.city };
 
-    // ✅ 写入缓存
     ctx.storage.set(CACHE_KEY, {
       time: nowTime,
       data
@@ -60,12 +49,15 @@ export default async function(ctx) {
   }
 }
 
-// ────────────── 渲染布局 ──────────────
-
 function renderMedium(data) {
   const { now, daily, air, city } = data;
   const iconInfo = getWeatherStyles(now.icon);
+
   const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  // ✅ 日期 + 星期
+  const d = new Date();
+  const dateStr = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} 周${'日一二三四五六'[d.getDay()]}`;
 
   const C_TEXT = { light: '#1C1C1E', dark: '#FFFFFF' };
   const C_SUB = { light: '#8E8E93', dark: '#8E8E93' };
@@ -78,59 +70,81 @@ function renderMedium(data) {
       colors: [{ light: '#FFFFFF', dark: '#1C1C1E' }, { light: '#F2F2F7', dark: '#000000' }]
     },
     children: [
-      // 顶部（✅ 改成系统图标）
-      { type: 'stack', direction: 'row', alignItems: 'center', children: [
+      {
+        type: 'stack', direction: 'row', alignItems: 'center', children: [
           { type: 'image', src: 'sf-symbol:location.fill', width: 14, height: 14, color: '#FF3B30' },
           { type: 'spacer', length: 4 },
-          { type: 'text', text: city, font: { size: 14, weight: 'bold' }, textColor: C_TEXT },
+
+          // ✅ 城市 + 日期
+          {
+            type: 'stack', direction: 'row', alignItems: 'center', children: [
+              { type: 'text', text: city, font: { size: 14, weight: 'bold' }, textColor: C_TEXT },
+              { type: 'spacer', length: 6 },
+              { type: 'text', text: dateStr, font: { size: 13 }, textColor: C_SUB }
+            ]
+          },
+
           { type: 'spacer' },
           { type: 'text', text: timeStr, font: { size: 12 }, textColor: C_SUB }
-      ]},
+        ]
+      },
 
       { type: 'spacer', flex: 1 },
 
-      // 中间
-      { type: 'stack', direction: 'row', alignItems: 'center', children: [
-          { type: 'spacer', flex: 1.2 }, 
+      {
+        type: 'stack', direction: 'row', alignItems: 'center', children: [
+          { type: 'spacer', flex: 0.9 },
 
-          { type: 'stack', direction: 'column', spacing: 2, children: [
+          {
+            type: 'stack', direction: 'column', spacing: 2, children: [
               { type: 'text', text: `MAX ${daily.tempMax}°`, font: { size: 13, weight: 'bold' }, textColor: '#FF3B30' },
               { type: 'text', text: `MIN ${daily.tempMin}°`, font: { size: 13, weight: 'bold' }, textColor: '#007AFF' }
-          ]},
+            ]
+          },
 
           { type: 'spacer', length: 15 },
 
-          { type: 'image', src: `sf-symbol:${iconInfo.icon}`, width: 66, height: 66, color: iconInfo.color },
+          { type: 'image', src: `sf-symbol:${iconInfo.icon}`, width: 52, height: 52, color: iconInfo.color },
 
-          { type: 'stack', direction: 'column', spacing: -6, children: [
-              { type: 'text', text: `${now.temp}°`, font: { size: 56, weight: 'bold' }, textColor: C_TEXT },
-              { type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
+          {
+            type: 'stack', direction: 'column', spacing: -2, children: [
+              { type: 'text', text: `${now.temp}°`, font: { size: 44, weight: 'bold' }, textColor: C_TEXT },
+
+              // ✅ 体感温度
+              { type: 'text', text: `体感 ${now.feelsLike || now.temp}°`, font: { size: 12 }, textColor: C_SUB },
+
+              {
+                type: 'stack', direction: 'row', alignItems: 'center', gap: 6, children: [
                   { type: 'text', text: now.text, font: { size: 16, weight: 'medium' }, textColor: C_TEXT },
                   { type: 'text', text: air.category, font: { size: 14, weight: 'bold' }, textColor: air.color }
-              ]}
-          ]},
+                ]
+              }
+            ]
+          },
 
-          { type: 'spacer', flex: 0.8 }
-      ]},
+          { type: 'spacer', flex: 1 }
+        ]
+      },
 
       { type: 'spacer', flex: 1 },
 
-      // 底部
-      { type: 'stack', direction: 'row', children: [
+      {
+        type: 'stack', direction: 'row', children: [
           renderFooterItem('drop.fill', `${now.humidity}%`, '#007AFF', C_TEXT),
           { type: 'spacer' },
-          renderFooterItem('wind', `${now.windScale}级`, '#5856D6', C_TEXT),
+          // ✅ 风向 + 风力
+          renderFooterItem('wind', `${now.windDir} ${now.windScale}级`, '#5856D6', C_TEXT),
           { type: 'spacer' },
           renderFooterItem('speedometer', `${now.windSpeed}km/h`, '#34C759', C_TEXT),
           { type: 'spacer' },
           renderFooterItem('aqi.low', `AQI ${air.aqi}`, '#FF9500', C_TEXT)
-      ]}
+        ]
+      }
     ]
   };
 }
 
-// ────────────── 其余函数（完全未动） ──────────────
-
+// 不动逻辑
 function renderFooterItem(icon, label, iconColor, textColor) {
   return {
     type: 'stack', direction: 'row', alignItems: 'center', gap: 4, children: [
@@ -144,11 +158,7 @@ async function fetchAirQuality(ctx, key, lon, lat, host) {
   const res = await ctx.http.get(`${host}/v7/air/now?location=${lon},${lat}&key=${key}`);
   const data = await res.json();
   if (data && data.now) {
-    return { 
-      aqi: data.now.aqi || '--', 
-      category: data.now.category || '', 
-      color: getAQIColor(data.now.aqi) 
-    };
+    return { aqi: data.now.aqi || '--', category: data.now.category || '', color: getAQIColor(data.now.aqi) };
   }
   return null;
 }
@@ -176,12 +186,31 @@ function getAQIColor(val) {
   return '#FF3B30';
 }
 
+// ✅ 昼夜图标
 function getWeatherStyles(code) {
   const n = parseInt(code);
-  if (n === 100 || n === 101) return { icon: 'sun.max.fill', color: '#FF9500' };
-  if (n <= 150) return { icon: 'cloud.sun.fill', color: '#FF9500' };
-  if (n >= 300 && n <= 399) return { icon: 'cloud.rain.fill', color: '#007AFF' };
-  return { icon: 'cloud.fill', color: '#007AFF' };
+  const hour = new Date().getHours();
+  const isNight = hour >= 18 || hour < 6;
+
+  if (n === 100 || n === 101) {
+    return {
+      icon: isNight ? 'moon.stars.fill' : 'sun.max.fill',
+      color: isNight ? '#5AC8FA' : '#FF9500'
+    };
+  }
+
+  if (n <= 150) {
+    return {
+      icon: isNight ? 'cloud.moon.fill' : 'cloud.sun.fill',
+      color: isNight ? '#5AC8FA' : '#FF9500'
+    };
+  }
+
+  if (n >= 300 && n <= 399) {
+    return { icon: 'cloud.rain.fill', color: '#007AFF' };
+  }
+
+  return { icon: 'cloud.fill', color: isNight ? '#5AC8FA' : '#007AFF' };
 }
 
 function normalizeHost(host) {
