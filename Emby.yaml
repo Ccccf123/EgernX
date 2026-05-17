@@ -7,6 +7,7 @@ domain_set:
   - media.asubaka.de
   - speedtest-babybus.apple-cdn.net
   - emby.dnscf.dpdns.org
+  - emby.605305.xyz
  
 domain_suffix_set:
   - m.mobaiemby.site
