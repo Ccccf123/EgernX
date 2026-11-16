@@ -7,6 +7,13 @@ domain_set:
    # 守候
   - server3.cn2gias.uk
   - s3.array2026.com
+   # 宸橙
+  - embycc.wybcs.work
+   # 非越媒体
+  - media.emby.pro
+   # 小鸡
+  - stream-1.sadchicktv.com
+   
   - media.asubaka.de
   - speedtest-babybus.apple-cdn.net
   - emby.dnscf.dpdns.org
@@ -15,7 +22,11 @@ domain_set:
   - nl.ftp2.eu.org
  
 domain_suffix_set:
+  # Lily
+  - lilyemby.app
+  # 墨云阁
   - m.mobaiemby.site
+
   - 123456.al
   - 16bit.cfd
   - 20120714.xyz
