@@ -1,13 +1,14 @@
 no_resolve: true
 domain_set:
-  - ask.ash.yt
-  - tv.ash.yt
+  - emby.bbqwq.com
+  - stream.embyplus.org
   - server3.cn2gias.uk
   - s3.array2026.com
   - media.asubaka.de
   - speedtest-babybus.apple-cdn.net
   - emby.dnscf.dpdns.org
   - emby.605305.xyz
+  - nl.ftp2.eu.org
  
 domain_suffix_set:
   - m.mobaiemby.site
