@@ -15,6 +15,8 @@ domain_set:
   - stream-1.sadchicktv.com
    # 大厨菜单
   - oss.thxnk.cc
+   # 步兵营地
+  - emby.111449.xyz
 
   - media.asubaka.de
   - speedtest-babybus.apple-cdn.net
