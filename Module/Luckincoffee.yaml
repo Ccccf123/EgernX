@@ -3,7 +3,7 @@ description: 过滤瑞幸咖啡广告
 open_url: https://apps.apple.com/app/id1296749505
 author: Sliverkiss[https://github.com/Sliverkiss], 可莉🅥[https://github.com/luestr/ProxyResource/blob/main/README.md]
 homepage: https://loonlab.103516.xyz/Plugin/
-icon: 
+icon: https://raw.githubusercontent.com/sooyaaabo/IconLibrary/main/App/LuckinCoffee.png
 dns: {}
 rewrites:
 - match: (?i)^https://capi\.lkcoffee\.com/resource/m/growUp/calendarList
