@@ -1,0 +1,44 @@
+name: 瑞幸咖啡
+description: 过滤瑞幸咖啡广告
+open_url: https://apps.apple.com/app/id1296749505
+author: Sliverkiss[https://github.com/Sliverkiss], 可莉🅥[https://github.com/luestr/ProxyResource/blob/main/README.md]
+homepage: https://loonlab.103516.xyz/Plugin/
+icon: 
+dns: {}
+rewrites:
+- match: (?i)^https://capi\.lkcoffee\.com/resource/m/growUp/calendarList
+  actions:
+  - respond:
+      status: 404
+- match: (?i)^https://capi\.lkcoffee\.com/resource/m/promotion/giftCard/topPage
+  actions:
+  - respond:
+      status: 404
+- match: (?i)^https://capi\.lkcoffee\.com/resource/m/sys/base/myLittleLuck
+  actions:
+  - respond:
+      status: 404
+- match: (?i)^https://capi\.lkcoffee\.com/resource/core/v2/menu/ordinaryUserLayeredArea
+  actions:
+  - respond:
+      status: 404
+- match: (?i)^https://capi\.lkcoffee\.com/resource/m/sys/common/modules
+  actions:
+  - respond:
+      status: 404
+- match: (?i)^https://capi\.lkcoffee\.com/resource/core/v2/homepage/homePageCoffeeList
+  actions:
+  - respond:
+      status: 404
+- match: (?i)^https://capi\.lkcoffee\.com/resource/m/eorder/product/popAppTagProductList
+  actions:
+  - respond:
+      status: 404
+- match: (?i)^https://capi\.lkcoffee\.com/resource/m/sys/app/adposNew
+  actions:
+  - respond:
+      status: 404
+mitm:
+  hostnames:
+    includes:
+    - capi.lkcoffee.com
