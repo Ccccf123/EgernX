@@ -18,7 +18,7 @@ dns: {}
 scriptings:
 - generic:
     name: weathercn
-    script_url: https://raw.githubusercontent.com/IBL3ND/js/refs/heads/main/WeatherWdg.js
+    script_url: https://raw.githubusercontent.com/Ccccf123/EgernX/refs/heads/main/JS/chinaweather.js
     env:
       CITY: '{{{weatherCity}}}'
       USER_NAME: '{{{weatherUserName}}}'
