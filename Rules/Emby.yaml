@@ -22,8 +22,6 @@ domain_set:
   - speedtest-babybus.apple-cdn.net
   - emby.dnscf.dpdns.org
   - oss.thxnk.cc
-   #这只猫
-  - nl.ftp2.eu.org
  
 domain_suffix_set:
   # Lily
@@ -32,6 +30,9 @@ domain_suffix_set:
   - mobaiemby.site
   # 守候
   - cn2gias.uk
+   #这只猫
+  - eu.org
+ 
 
   - 123456.al
   - 16bit.cfd
